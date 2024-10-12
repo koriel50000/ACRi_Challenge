@@ -1,0 +1,8 @@
+target_clock_period_ns=2
+vitis_version=2021.1
+csim_timeout=2m
+hls_timeout=5m
+cosim_timeout=10m
+syn_timeout=30m
+cxxflags="-I/tools/Xilinx/Vitis/2021.1/include"
+ldflags="-L/tools/Xilinx/Vitis/2021.1/lib"
