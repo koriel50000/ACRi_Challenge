@@ -1,12 +1,14 @@
 #include "kernel.hpp"
 #include <ap_int.h>
 #include <hls_stream.h>
+#include <hls_math.h>
 
 const int FLATTEN = 256;
 const int CLASS = 10;
 
 const int CHUNK_SIZE = 16;
 
+using bit_t = ap_uint<1>;
 using uint2_t = ap_uint<2>;
 using uint3_t = ap_uint<3>;
 using uint4_t = ap_uint<4>;
@@ -26,12 +28,12 @@ public:
 
 	ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
-		return buf_(W * (N - index) - 1, W * (N - 1 - index));
+		return buf_(W * index + W - 1, W * index);
 	}
 
 	ap_range_ref<W*N, false> operator[](size_t index) {
 		assert(index < N);
-		return buf_(W * (N - index) - 1, W * (N - 1 - index));
+		return buf_(W * index + W - 1, W * index);
 	}
 };
 
@@ -202,11 +204,7 @@ public:
 #pragma HLS unroll
 				int_t<1,16> wp = matp[j * CL + i];
 				int_t<1,16> wn = matn[j * CL + i];
-				//int16_t acc = muluadd32(vu, wp, wn);
-				int16_t acc = 0;
-				for (int k = 0; k < 16; k++) {
-					acc += vu[k] * matp[k] - vu[k] * matn[k];
-				}
+				int16_t acc = muluadd32(vu, wp, wn);
 				outs.write(acc);
 			}
 		}
