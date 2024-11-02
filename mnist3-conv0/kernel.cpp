@@ -185,6 +185,52 @@ public:
 	}
 };
 
+template <int H, int W, int KN, int PD = 0, int ST = 1, typename IT, typename OT>
+class WindowBuffer;
+
+template <int H, int W, int KN, int PD, int ST = 1, typename IT, typename OT>
+class WindowBuffer;
+
+template <int H, int W, int KN, int PD, int SD, typename IT, typename OT>
+class WindowBuffer {
+private:
+	LineBuffer<W + PD, KN, IT, OT> linebuf_;
+	IT v0_;
+public:
+	WindowBuffer(IT v0 = NULL) : v0_(v0) {}
+
+	void pass_through(fifo<IT>& ins, fifo<OT>& outs) {
+		int x = 0 - (KN - 1);
+		int y = 0 - (KN - 1);
+		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
+			IT v;
+			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
+				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
+			{
+				v = ins.read();
+			}
+			else {
+				v = v0_;
+			}
+			if (i < (W + PD) * (KN - 1) - PD) {
+				linebuf_.insert_linebuf(v);
+			}
+			else {
+				linebuf_.slide_window(v);
+			}
+			if (0 <= x && 0 <= y && x % SD == 0 && y % SD == 0) {
+				OT oval = linebuf_.get_window();
+				outs.write(oval);
+			}
+			x++;
+			if (x >= W - (KN - 1) + PD * 2) {
+				x = 0 - (KN - 1) + PD;
+				y++;
+			}
+		}
+	}
+};
+
 template <typename WT, int H, int W, int C, int KH, int KW, int F, int M>
 class Conv2D {
 private:
@@ -229,30 +275,16 @@ public:
 	}
 };
 
+using Buffer0 = WindowBuffer<28, 28, 5, bit_t, int_t<1,25>>;
 using Conv0 = Conv2D<int_t<1,25>, 28, 28, 1, 5, 5, 16, 3>;
 
-template <int H, int W, int KH, int KW>
+template <int H, int W, int KN>
 void read_input(const int in[H * W], fifo<int_t<1,25>>& ins) {
-	LineBuffer<KH, W, bit_t, int_t<1,25>> linebuf;
 
-	for (int y = 0; y < KH - 1; y++) {
+	for (int i = 0; i < H * W; y++) {
 #pragma HLS pipeline
-		for (int x = 0; x < W; x++) {
-			bit_t v = in[y * W + x];
-			linebuf.insert_linebuf(v);
-		}
-	}
-	for (int y = KH - 1; y < H; y++) {
-#pragma HLS pipeline
-		for (int x = 0; x < W; x++) {
-			bit_t v = in[y * W + x];
-			linebuf.slide_window(v);
-
-			if (x >= KW - 1) {
-				int_t<1,25> oval = linebuf.get_window();
-				ins.write(oval);
-			}
-		}
+		bit_t v = in[i];
+		ins.write(v);
 	}
 }
 
@@ -279,13 +311,16 @@ void kernel(
 #pragma HLS array_partition variable=in cyclic factor=WIDTH
 #pragma HLS array_partition variable=out cyclic factor=FILTER
 
-	fifo<int_t<1,25>> ins("input_fifo");
+	fifo<bit_t> ins("input_fifo");
+	fifo<int_t<2,25>> pips1("pipe_fifo1");
 	fifo<int_t<2,16>> outs("output_fifo");
 
+	Buffer0 buffer0;
 	Conv0 conv0;
 
 #pragma HLS dataflow
-	read_input<28, 28, 5, 5>(in, ins);
-	conv0.compute<int_t<2,16>>(ins, outs);
+	read_input<28, 28, 5>(in, ins);
+	buffer0.pass_through(ins, pips1);
+	conv0.compute<int_t<2,16>>(pips1, outs);
 	write_result<24, 24, 16>(out, outs);
 }
