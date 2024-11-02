@@ -35,12 +35,12 @@ public:
 	int_t(unsigned long ul) : buf_(ul) {}
 	int_t(const char* s) : buf_(s) {}
 
-	ap_range_ref<W*N, false> operator[](size_t index) const {
+	inline ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
 		return buf_(W * index + W - 1, W * index);
 	}
 
-	ap_range_ref<W*N, false> operator[](size_t index) {
+	inline ap_range_ref<W*N, false> operator[](size_t index) {
 		assert(index < N);
 		return buf_(W * index + W - 1, W * index);
 	}
@@ -110,13 +110,13 @@ int16_t muladd25(int_t<1,25> vu, int_t<1,25> wp, int_t<1,25> wn) {
 template <int ROWS, int COLS, typename T, typename WT>
 class Window {
 private:
-	WT buf;
+	WT buf_;
 public:
 	void shift_pixels_left() {
 #pragma HLS inline
 		for (int i = 0; i < ROWS * COLS - 1; i++) {
 #pragma HLS unroll
-			buf[i] = buf[i + 1];
+			buf_[i] = buf_[i + 1];
 		}
 	}
 
@@ -125,39 +125,39 @@ public:
 		for (int i = 0; i < ROWS; i++) {
 #pragma HLS unroll
 			int idx = (i + 1) * COLS - 1;
-			buf[idx] = value[i];
+			buf_[idx] = value[i];
 		}
 	}
 
 	WT& get_buf() {
-		return buf;
+		return buf_;
 	}
 };
 
 template <int KH, int W, typename T, typename WT>
 class LineBuffer {
 private:
-	hls::vector<T, (KH - 1) * W> buf;
-	Window<KH, KH, T, WT> window;
+	hls::vector<T, (KH - 1) * W> buf_;
+	Window<KH, KH, T, WT> window_;
 
 	void shift_pixels_up() {
 #pragma HLS inline
 		for (int i = 0; i < (KH - 1) * W - 1; i++) {
 #pragma HLS unroll
-			buf[i] = buf[i + 1];
+			buf_[i] = buf_[i + 1];
 		}
 	}
 
 	void insert_bottom_row(T value) {
 #pragma HLS inline
-		buf[(KH - 1) * W - 1] = value;
+		buf_[(KH - 1) * W - 1] = value;
 	}
 
 	void get_col(T value[KH - 1]) {
 #pragma HLS inline
 		for (int i = 0; i < KH - 1; i++) {
 #pragma HLS unroll
-			value[i] = buf[i * W];
+			value[i] = buf_[i * W];
 		}
 	}
 public:
@@ -175,12 +175,12 @@ public:
 		shift_pixels_up();
 		insert_bottom_row(v);
 
-		window.shift_pixels_left();
-		window.insert_right_col(rows);
+		window_.shift_pixels_left();
+		window_.insert_right_col(rows);
 	}
 
 	WT& get_window() {
-		return window.get_buf();
+		return window_.get_buf();
 	}
 };
 
@@ -193,16 +193,16 @@ public:
 	template <typename OT>
 	void compute(fifo<WT>& ins, fifo<OT>& outs) {
 		static WT fp[F] = {
-I25(0x01bc800), I25(0x0008463), I25(0x0002598), I25(0x0462300),
-I25(0x0d3b800), I25(0x011a000), I25(0x0004189), I25(0x1a48000),
-I25(0x1001465), I25(0x00a6508), I25(0x10a4010), I25(0x0006502),
-I25(0x00000ac), I25(0x0081095), I25(0x0310421), I25(0x1a08000),
+0x01bc800, 0x0008463, 0x0002598, 0x0462300,
+0x0d3b800, 0x011a000, 0x0004189, 0x1a48000,
+0x1001465, 0x00a6508, 0x10a4010, 0x0006502,
+0x00000ac, 0x0081095, 0x0310421, 0x1a08000,
 		};
 		static WT fn[F] = {
-I25(0x000019e), I25(0x1ce7310), I25(0x0808001), I25(0x0018422),
-I25(0x0004050), I25(0x0000000), I25(0x1e30000), I25(0x0001c48),
-I25(0x0128000), I25(0x1000000), I25(0x0208002), I25(0x0100000),
-I25(0x0f68000), I25(0x1f18000), I25(0x00c6100), I25(0x000436b),
+0x000019e, 0x1ce7310, 0x0808001, 0x0018422,
+0x0004050, 0x0000000, 0x1e30000, 0x0001c48,
+0x0128000, 0x1000000, 0x0208002, 0x0100000,
+0x0f68000, 0x1f18000, 0x00c6100, 0x000436b,
 		};
 		static int thr[] = { 1, 3, 4 };
 #pragma HLS array_partition variable=fp
