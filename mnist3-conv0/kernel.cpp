@@ -1,6 +1,7 @@
 #include "kernel.hpp"
 #include <ap_int.h>
 #include <hls_stream.h>
+#include <hls_vector.h>
 #include <hls_math.h>
 
 const int WIDTH = 28;

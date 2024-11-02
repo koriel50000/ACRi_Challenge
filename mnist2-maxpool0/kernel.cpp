@@ -24,12 +24,12 @@ public:
 	int_t(unsigned long ul) : buf_(ul) {}
 	int_t(const char* s) : buf_(s) {}
 
-	ap_range_ref<W*N, false> operator[](size_t index) const {
+	inline ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
 		return buf_(W * index + W - 1, W * index);
 	}
 
-	ap_range_ref<W*N, false> operator[](size_t index) {
+	inline ap_range_ref<W*N, false> operator[](size_t index) {
 		assert(index < N);
 		return buf_(W * index + W - 1, W * index);
 	}
