@@ -1,6 +1,42 @@
 #include "kernel.hpp"
-#include <hls_vector.h>
-#include <hls_math.h>
+#include <ap_int.h>
+#include <hls_stream.h>
+
+const int FLATTEN = 256;
+const int CLASS = 10;
+
+const int CHUNK_SIZE = 16;
+
+using uint2_t = ap_uint<2>;
+using uint3_t = ap_uint<3>;
+using uint4_t = ap_uint<4>;
+using uint6_t = ap_uint<6>;
+
+template <int W, int N>
+class int_t {
+private:
+	ap_uint<W* N> buf_;
+public:
+	int_t() : buf_(0) {}
+	int_t(int i) : buf_(i) {}
+	int_t(unsigned int ui) : buf_(ui) {}
+	int_t(long l) : buf_(l) {}
+	int_t(unsigned long ul) : buf_(ul) {}
+	int_t(const char* s) : buf_(s) {}
+
+	ap_range_ref<W* N, false> operator[](size_t index) const {
+		assert(index < N);
+		return buf_(W * (N - index) - 1, W * (N - 1 - index));
+	}
+
+	ap_range_ref<W* N, false> operator[](size_t index) {
+		assert(index < N);
+		return buf_(W * (N - index) - 1, W * (N - 1 - index));
+	}
+};
+
+template <typename T>
+using fifo = hls::stream<T>;
 
 void muac63(uint6_t i, uint3_t& o) {
 	static const uint3_t table[] = {
@@ -67,27 +103,6 @@ int16_t muluadd32(int_t<2,16> vu, int_t<1,16> wp, int_t<1,16> wn) {
 
 	return ((p0 + p1) + (p2 + p3)) - ((n0 + n1) + (n2 + n3));
 }
-
-template <int W, int N>
-class int_t {
-public:
-	int_t() : buf_(0) {}
-	int_t(int i) : buf_(i) {}
-	int_t(unsigned int ui) : buf_(ui) {}
-	int_t(long l) : buf_(l) {}
-	int_t(unsigned long ul) : buf_(ul) {}
-	int_t(const char* s) : buf_(s) {}
-
-	ap_range_ref<W*N, false> operator[](size_t index) const {
-		assert(index < N);
-		return buf_(W * (N - index) - 1, W * (N - 1 - index));
-	}
-
-	ap_range_ref<W*N, false> operator[](size_t index) {
-		assert(index < N);
-		return buf_(W * (N - index) - 1, W * (N - 1 - index));
-	}
-};
 
 template <typename IT, int FL, int CL, int K>
 class Dense {
