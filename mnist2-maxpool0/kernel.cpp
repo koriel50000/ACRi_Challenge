@@ -1,7 +1,7 @@
 #include "kernel.hpp"
 #include <ap_int.h>
 #include <hls_stream.h>
-#include <hls_vector.h>
+#include <hls_math.h>
 
 const int WIDTH = 24;
 const int HEIGHT = 24;
@@ -13,7 +13,28 @@ const int OHEIGHT = HEIGHT / 2;
 using uint2_t = ap_uint<2>;
 
 template <int W, int N>
-using int_t = hls::vector<ap_uint<W>, N>;
+class int_t {
+private:
+	ap_uint<W*N> buf_;
+public:
+	int_t() : buf_(0) {}
+	int_t(int i) : buf_(i) {}
+	int_t(unsigned int ui) : buf_(ui) {}
+	int_t(long l) : buf_(l) {}
+	int_t(unsigned long ul) : buf_(ul) {}
+	int_t(const char* s) : buf_(s) {}
+
+	ap_range_ref<W*N, false> operator[](size_t index) const {
+		assert(index < N);
+		return buf_(W * index + W - 1, W * index);
+	}
+
+	ap_range_ref<W*N, false> operator[](size_t index) {
+		assert(index < N);
+		return buf_(W * index + W - 1, W * index);
+	}
+};
+
 template <typename T>
 using fifo = hls::stream<T>;
 

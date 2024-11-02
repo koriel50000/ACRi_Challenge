@@ -1,9 +1,7 @@
 #include "kernel.hpp"
 #include <ap_int.h>
 #include <hls_stream.h>
-#include <hls_vector.h>
-
-#define I25(i) int_t<1,25>({ (i >> 0) & 1, (i >> 1) & 1, (i >> 2) & 1, (i >> 3) & 1, (i >> 4) & 1, (i >> 5) & 1, (i >> 6) & 1, (i >> 7) & 1, (i >> 8) & 1, (i >> 9) & 1, (i >> 10) & 1, (i >> 11) & 1, (i >> 12) & 1, (i >> 13) & 1, (i >> 14) & 1, (i >> 15) & 1, (i >> 16) & 1, (i >> 17) & 1, (i >> 18) & 1, (i >> 19) & 1, (i >> 20) & 1, (i >> 21) & 1, (i >> 22) & 1, (i >> 23) & 1, (i >> 24) & 1, })
+#include <hls_math.h>
 
 const int WIDTH = 28;
 const int HEIGHT = 28;
@@ -26,7 +24,28 @@ using int4_t = ap_int<4>;
 using uint6_t = ap_uint<6>;
 
 template <int W, int N>
-using int_t = hls::vector<ap_uint<W>, N>;
+class int_t {
+private:
+	ap_uint<W*N> buf_;
+public:
+	int_t() : buf_(0) {}
+	int_t(int i) : buf_(i) {}
+	int_t(unsigned int ui) : buf_(ui) {}
+	int_t(long l) : buf_(l) {}
+	int_t(unsigned long ul) : buf_(ul) {}
+	int_t(const char* s) : buf_(s) {}
+
+	ap_range_ref<W*N, false> operator[](size_t index) const {
+		assert(index < N);
+		return buf_(W * index + W - 1, W * index);
+	}
+
+	ap_range_ref<W*N, false> operator[](size_t index) {
+		assert(index < N);
+		return buf_(W * index + W - 1, W * index);
+	}
+};
+
 template <typename T>
 using fifo = hls::stream<T>;
 
