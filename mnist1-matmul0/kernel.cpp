@@ -15,7 +15,7 @@ using uint6_t = ap_uint<6>;
 template <int W, int N>
 class int_t {
 private:
-	ap_uint<W* N> buf_;
+	ap_uint<W*N> buf_;
 public:
 	int_t() : buf_(0) {}
 	int_t(int i) : buf_(i) {}
@@ -24,12 +24,12 @@ public:
 	int_t(unsigned long ul) : buf_(ul) {}
 	int_t(const char* s) : buf_(s) {}
 
-	ap_range_ref<W* N, false> operator[](size_t index) const {
+	ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
 		return buf_(W * (N - index) - 1, W * (N - 1 - index));
 	}
 
-	ap_range_ref<W* N, false> operator[](size_t index) {
+	ap_range_ref<W*N, false> operator[](size_t index) {
 		assert(index < N);
 		return buf_(W * (N - index) - 1, W * (N - 1 - index));
 	}
@@ -202,7 +202,11 @@ public:
 #pragma HLS unroll
 				int_t<1,16> wp = matp[j * CL + i];
 				int_t<1,16> wn = matn[j * CL + i];
-				int16_t acc = muluadd32(vu, wp, wn);
+				//int16_t acc = muluadd32(vu, wp, wn);
+				int16_t acc = 0;
+				for (int k = 0; k < 16; k++) {
+					acc += vu[k] * matp[k] - vu[k] * matn[k];
+				}
 				outs.write(acc);
 			}
 		}
