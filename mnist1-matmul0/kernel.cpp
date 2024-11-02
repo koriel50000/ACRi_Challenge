@@ -88,9 +88,12 @@ class int_t {
 private:
 	ap_uint<W*N> buf_;
 public:
+	int_t() : buf_(0) {}
+	int_t(int i) : buf_(i) {}
+	int_t(unsigned int ui) : buf_(ui) {}
+	int_t(long l) : buf_(l) {}
+	int_t(unsigned long ul) : buf_(ul) {}
 	int_t(const char* s) : buf_(s) {}
-	int_t(unsigned int i) : buf_(i) {}
-	int_t(unsigned long l) : buf_(l) {}
 
 	ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
