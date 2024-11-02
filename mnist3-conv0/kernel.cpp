@@ -185,13 +185,7 @@ public:
 	}
 };
 
-template <int H, int W, int KN, int PD = 0, int ST = 1, typename IT, typename OT>
-class WindowBuffer;
-
-template <int H, int W, int KN, int PD, int ST = 1, typename IT, typename OT>
-class WindowBuffer;
-
-template <int H, int W, int KN, int PD, int SD, typename IT, typename OT>
+template <int H, int W, int KN, typename IT, typename OT, int PD = 0, int ST = 1>
 class WindowBuffer {
 private:
 	LineBuffer<W + PD, KN, IT, OT> linebuf_;
@@ -218,7 +212,7 @@ public:
 			else {
 				linebuf_.slide_window(v);
 			}
-			if (0 <= x && 0 <= y && x % SD == 0 && y % SD == 0) {
+			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
 				OT oval = linebuf_.get_window();
 				outs.write(oval);
 			}
@@ -231,11 +225,11 @@ public:
 	}
 };
 
-template <typename WT, int H, int W, int C, int KH, int KW, int F, int M>
+template <typename WT, int H, int W, int C, int KN, int F, int M>
 class Conv2D {
 private:
-	static const int OH = H - KH + 1;
-	static const int OW = W - KW + 1;
+	static const int OH = H - KN + 1;
+	static const int OW = W - KN + 1;
 public:
 	template <typename OT>
 	void compute(fifo<WT>& ins, fifo<OT>& outs) {
@@ -276,13 +270,13 @@ public:
 };
 
 using Buffer0 = WindowBuffer<28, 28, 5, bit_t, int_t<1,25>>;
-using Conv0 = Conv2D<int_t<1,25>, 28, 28, 1, 5, 5, 16, 3>;
+using Conv0 = Conv2D<int_t<1,25>, 28, 28, 1, 5, 16, 3>;
 
 template <int H, int W, int KN>
 void read_input(const int in[H * W], fifo<int_t<1,25>>& ins) {
 
 	for (int i = 0; i < H * W; y++) {
-#pragma HLS pipeline
+#pragma HLS pipeline factor=W skip_exit_check
 		bit_t v = in[i];
 		ins.write(v);
 	}
@@ -312,7 +306,7 @@ void kernel(
 #pragma HLS array_partition variable=out cyclic factor=FILTER
 
 	fifo<bit_t> ins("input_fifo");
-	fifo<int_t<2,25>> pips1("pipe_fifo1");
+	fifo<int_t<1,25>> pips1("pipe_fifo1");
 	fifo<int_t<2,16>> outs("output_fifo");
 
 	Buffer0 buffer0;
