@@ -166,9 +166,9 @@ public:
 };
 
 template <int H, int W, typename T>
-void read_input(const int in[H * W], fifo<win_t<T,3*3>>& ins) {
+void read_input(const int in[H * W], fifo<T>& ins) {
 	for (int xy = 0; xy < H * W; xy++) {
-		T val = in[ptr++];
+		T val = in[xy];
 		ins.write(val);
 	}
 }
@@ -198,17 +198,18 @@ void kernel(int in[HEIGHT * WIDTH],
 	int out_obj_32[400 * 1], int out_cls_32[400 * 1],
 	int out_bbox_32[400 * 4], int out_kps_32[400 * 10])
 {
-	fifo<win_t<int_t<4,4>,3*3>> ins("input_fifo");
-	fifo<int_t<4,16>> pips1("pipe_fifo1");
+	fifo<int_t<4,4>> ins("input_fifo");
+	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
 	fifo<int_t<4,16>> pips2("pipe_fifo2");
 
 	WindowBuffer<640, 640, 3, int_t<4,4>, win_t<int_t<4,4>,3*3>, 1, 2> backbone_model0_buffer1;
 	Conv2D<320, 320, 4, 3, 16, 7> backbone_model0_conv1;
 
 	read_input<640, 640, int_t<4,4>>(in, ins);
-	backbone_model0_buffer1.path_through(ins, pips1);
-	backbone_model0_conv1.compute<int_t<4,4>, int_t<4,16>>(pips1, pips2,
-		backbone_model0_conv1_weight, // [16][9]
-		backbone_model0_relu1_threshold); // [16][7]
-	write_result<int_t<4,16>>(pips2);
+	//backbone_model0_buffer1.pass_through(ins, pips1);
+	//backbone_model0_conv1.compute<int_t<4,4>, int_t<4,16>>(pips1, pips2,
+	//	backbone_model0_conv1_weight, // [16][9]
+	//	backbone_model0_relu1_threshold); // [16][7]
+	//write_result<int_t<4,16>>(pips2);
+
 }
