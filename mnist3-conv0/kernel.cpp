@@ -135,15 +135,15 @@ public:
 	}
 };
 
-template <int KH, int W, typename T, typename WT>
+template <int W, int KN, typename T, typename WT>
 class LineBuffer {
 private:
-	hls::vector<T, (KH - 1) * W> buf_;
-	Window<KH, KH, T, WT> window_;
+	hls::vector<T, (KN - 1) * W> buf_;
+	Window<KN, KN, T, WT> window_;
 
 	void shift_pixels_up() {
 #pragma HLS inline
-		for (int i = 0; i < (KH - 1) * W - 1; i++) {
+		for (int i = 0; i < (KN - 1) * W - 1; i++) {
 #pragma HLS unroll
 			buf_[i] = buf_[i + 1];
 		}
@@ -151,12 +151,12 @@ private:
 
 	void insert_bottom_row(T value) {
 #pragma HLS inline
-		buf_[(KH - 1) * W - 1] = value;
+		buf_[(KN - 1) * W - 1] = value;
 	}
 
-	void get_col(T value[KH - 1]) {
+	void get_col(T value[KN - 1]) {
 #pragma HLS inline
-		for (int i = 0; i < KH - 1; i++) {
+		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
 			value[i] = buf_[i * W];
 		}
@@ -168,11 +168,11 @@ public:
 	}
 
 	void slide_window(const T v) {
-		T rows[KH];
+		T rows[KN];
 #pragma HLS array_partition variable=rows
 
 		get_col(rows);
-		rows[KH - 1] = v;
+		rows[KN - 1] = v;
 		shift_pixels_up();
 		insert_bottom_row(v);
 
@@ -191,26 +191,27 @@ private:
 	LineBuffer<W + PD, KN, IT, OT> linebuf_;
 	IT v0_;
 public:
-	WindowBuffer(IT v0 = NULL) : v0_(v0) {}
+	WindowBuffer(IT v0 = 0) : v0_(v0) {}
 
 	void pass_through(fifo<IT>& ins, fifo<OT>& outs) {
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
-			IT v;
+#pragma HLS pipeline
+			IT val;
 			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
 			{
-				v = ins.read();
+				val = ins.read();
 			}
 			else {
-				v = v0_;
+				val = v0_;
 			}
 			if (i < (W + PD) * (KN - 1) - PD) {
-				linebuf_.insert_linebuf(v);
+				linebuf_.insert_linebuf(val);
 			}
 			else {
-				linebuf_.slide_window(v);
+				linebuf_.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
 				OT oval = linebuf_.get_window();
@@ -273,11 +274,11 @@ using Buffer0 = WindowBuffer<28, 28, 5, bit_t, int_t<1,25>>;
 using Conv0 = Conv2D<int_t<1,25>, 28, 28, 1, 5, 16, 3>;
 
 template <int H, int W, int KN>
-void read_input(const int in[H * W], fifo<int_t<1,25>>& ins) {
+void read_input(const int in[H * W], fifo<bit_t>& ins) {
 
-	for (int i = 0; i < H * W; y++) {
+	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS pipeline factor=W skip_exit_check
-		bit_t v = in[i];
+		bit_t v = in[xy];
 		ins.write(v);
 	}
 }
