@@ -212,4 +212,16 @@ void kernel(int in[HEIGHT * WIDTH],
 	//	backbone_model0_relu1_threshold); // [16][7]
 	//write_result<int_t<4,16>>(pips2);
 
+	out_obj_8[0] = 0;
+	out_cls_8[0] = 0;
+	out_bbox_8[0] = 0;
+	out_kps_8[0] = 0;
+	out_obj_16[0] = 0;
+	out_cls_16[0] = 0;
+	out_bbox_16[0] = 0;
+	out_kps_16[0] = 0;
+	out_obj_32[0] = 0;
+	out_cls_32[0] = 0;
+	out_bbox_32[0] = 0;
+	out_kps_32[0] = 0;
 }
