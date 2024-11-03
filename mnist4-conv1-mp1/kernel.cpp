@@ -194,15 +194,12 @@ template <int H, int W, int KN, typename IT, typename OT, int PD = 0, int ST = 1
 class WindowBuffer {
 private:
 	LineBuffer<W + PD, KN, IT, OT> linebuf_;
-	IT v0_;
 public:
-	WindowBuffer(IT v0 = 0) : v0_(v0) {}
-
 	void pass_through(fifo<IT>& ins, fifo<OT>& outs) {
+#pragma HLS pipeline
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
-#pragma HLS pipeline
 			IT val;
 			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
@@ -210,7 +207,7 @@ public:
 				val = ins.read();
 			}
 			else {
-				val = v0_;
+				val = 0;
 			}
 			if (i < (W + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
@@ -239,7 +236,7 @@ protected:
 public:
 	template <typename OT>
 	void compute(fifo<WT>& ins, fifo<OT>& outs) {
-		static int_t<1,16> fp[F * KH * KW] = {
+		static int_t<1,16> fp[F * KN * KN] = {
 0x8000, 0x0000, 0x4000, 0x4000, 
 0xc000, 0x1000, 0x1000, 0x0000, 
 0x4000, 0x4000, 0x1000, 0x0000, 
@@ -341,7 +338,7 @@ public:
 0x0011, 0x0011, 0x8091, 0x0000, 
 0x0000, 0x1900, 0x2040, 0x0825, 
 		};
-		static int_t<1,16> fn[F * KH * KW] = {
+		static int_t<1,16> fn[F * KN * KN] = {
 0x0000, 0x0002, 0x0002, 0x1003, 
 0x1040, 0x0000, 0x4002, 0x1000, 
 0x1000, 0x1002, 0xc010, 0xc000, 
@@ -444,8 +441,8 @@ public:
 0x0003, 0x0082, 0x4002, 0x0002, 
 		};
 		static int thr[M] = { 3, 9, 14 };
-#pragma HLS array_partition variable=fp cyclic factor=KH * KW
-#pragma HLS array_partition variable=fn cyclic factor=KH * KW
+#pragma HLS array_partition variable=fp cyclic factor=KN * KN
+#pragma HLS array_partition variable=fn cyclic factor=KN * KN
 #pragma HLS array_partition variable=thr
 
 		for (int xy = 0; xy < OH * OW; xy++) {
@@ -454,10 +451,10 @@ public:
 			OT oval;
 			for (int z = 0; z < F; z ++) {
 				int16_t acc = 0;
-				for (int k = 0; k < KH * KW; k++) {
+				for (int k = 0; k < KN * KN; k++) {
 					int_t<2,16> vu = val[k];
-					int_t<1,16> wp = fp[z * KH * KW + k];
-					int_t<1,16> wn = fn[z * KH * KW + k];
+					int_t<1,16> wp = fp[z * KN * KN + k];
+					int_t<1,16> wn = fn[z * KN * KN + k];
 					acc += muluadd32(vu, wp, wn);
 				}
 				uint2_t m = 0;
@@ -515,15 +512,20 @@ public:
 	}
 };
 
-using Buffer1 = WindowBuffer<12, 12, 5, uint2_t, int_t<2, 16>>;
-using Conv1 = Conv2D_1<wpack_t, 12, 12, 16, 5, 5, 16, 3>;
+using Buffer1 = WindowBuffer<12, 12, 5, int_t<2,16>, wpack_t>;
+using Conv1 = Conv2D_1<wpack_t, 12, 12, 16, 5, 16, 3>;
 using MaxPool1 = MaxPool2x2<int_t<2,16>, 8, 8, 16>;
 
 template<int H, int W, int C, typename T>
 void read_input(const int in[H * W * C], fifo<T>& ins) {
-	for (int xyz = 0; xyz < H * W * C; xyz++) {
-#pragma HLS unroll factor=C skip_exit_check
-		T val = in[xyz];
+	int ptr = 0;
+	for (int xy = 0; xy < H * W; xy++) {
+#pragma HLS pipeline
+		T val;
+		for (int z = 0; z < C; z++) {
+#pragma HLS unroll
+			val[z] = in[ptr++];
+		}
 		ins.write(val);
 	}
 }
@@ -551,8 +553,8 @@ void kernel(
 #pragma HLS array_partition variable=in cyclic factor=CHANNEL
 #pragma HLS array_partition variable=out cyclic factor=FILTER
 
-	fifo<<uint2_t> ins("input_fifo");
-	fifo<int_t<2,16>> pips1("pipe_fifo1");
+	fifo<int_t<2,16>> ins("input_fifo");
+	fifo<wpack_t> pips1("pipe_fifo1");
 	fifo<int_t<2,16>> pips2("pipe_fifo2");
 	fifo<int_t<2,16>> pips3("pipe_fifo3");
 	fifo<int_t<2,16>> outs("output_fifo");
@@ -562,7 +564,7 @@ void kernel(
 	MaxPool1 maxpool1;
 
 #pragma HLS dataflow
-	read_input<12, 12, 16>(in, ins);
+	read_input<12, 12, 16, int_t<2,16>>(in, ins);
 	buffer1.pass_through(ins, pips1);
 	conv1.compute<int_t<2,16>>(pips1, pips2);
 	maxpool1.compute_h(pips2, pips3);
