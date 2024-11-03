@@ -27,45 +27,54 @@ int4_t batch_norm(const int16_t acc, const int threshold[M]) {
 template <int ROWS, int COLS, typename T, typename WT>
 class Window {
 private:
-	WT buf;
+	WT buf_;
 public:
 	void shift_pixels_left() {
+#pragma HLS inline
 		for (int i = 0; i < ROWS * COLS - 1; i++) {
-			buf[i] = buf[i + 1];
+#pragma HLS unroll
+			buf_[i] = buf_[i + 1];
 		}
 	}
 
 	void insert_right_col(const T value[ROWS]) {
+#pragma HLS inline
 		for (int i = 0; i < ROWS; i++) {
+#pragma HLS unroll
 			int idx = (i + 1) * COLS - 1;
-			buf[idx] = value[i];
+			buf_[idx] = value[i];
 		}
 	}
 
 	WT& get_buf() {
-		return buf;
+		return buf_;
 	}
 };
 
 template <int W, int KN, typename T, typename WT>
 class LineBuffer {
 private:
-	hls::vector<T, (KN - 1) * W> buf;
-	Window<KN, KN, T, WT> window;
+	hls::vector<T, W * (KN - 1)> buf_;
+	Window<KN, KN, T, WT> window_;
 
 	void shift_pixels_up() {
-		for (int i = 0; i < (KN - 1) * W - 1; i++) {
-			buf[i] = buf[i + 1];
+#pragma HLS inline
+		for (int i = 0; i < W * (KN - 1) - 1; i++) {
+#pragma HLS unroll
+			buf_[i] = buf_[i + 1];
 		}
 	}
 
 	void insert_bottom_row(T value) {
-		buf[(KN - 1) * W - 1] = value;
+#pragma HLS inline
+		buf_[W * (KN - 1) - 1] = value;
 	}
 
 	void get_col(T value[KN - 1]) {
+#pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
-			value[i] = buf[i * W];
+#pragma HLS unroll
+			value[i] = buf_[i * W];
 		}
 	}
 public:
@@ -76,18 +85,57 @@ public:
 
 	void slide_window(const T v) {
 		T rows[KN];
+#pragma HLS array_partition variable=rows
 
 		get_col(rows);
 		rows[KN - 1] = v;
 		shift_pixels_up();
 		insert_bottom_row(v);
 
-		window.shift_pixels_left();
-		window.insert_right_col(rows);
+		window_.shift_pixels_left();
+		window_.insert_right_col(rows);
 	}
 
 	WT& get_window() {
-		return window.get_buf();
+		return window_.get_buf();
+	}
+};
+
+template <int H, int W, int KN, typename IT, typename OT, int PD = 0, int ST = 1>
+class WindowBuffer {
+private:
+	LineBuffer<W + PD, KN, IT, OT> linebuf_;
+public:
+	void pass_through(fifo<IT>& ins, fifo<OT>& outs) {
+		int x = 0 - (KN - 1);
+		int y = 0 - (KN - 1);
+		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
+#pragma HLS pipeline
+			IT val;
+			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
+				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
+			{
+				val = ins.read();
+			}
+			else {
+				val = 0;
+			}
+			if (i < (W + PD) * (KN - 1) - PD) {
+				linebuf_.insert_linebuf(val);
+			}
+			else {
+				linebuf_.slide_window(val);
+			}
+			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
+				OT oval = linebuf_.get_window();
+				outs.write(oval);
+			}
+			x++;
+			if (x >= W - (KN - 1) + PD * 2) {
+				x = 0 - (KN - 1) + PD;
+				y++;
+			}
+		}
 	}
 };
 
@@ -119,35 +167,9 @@ public:
 
 template <int H, int W, typename T>
 void read_input(const int in[H * W], fifo<win_t<T,3*3>>& ins) {
-	// kernel_size: 3, stride: 2, padding: 1
-	LineBuffer<W + 2, 3, T, win_t<T,3*3>> linebuf;
-
-	int ptr = 0;
-	T v0 = I3(0x000);
-	for (int x = 0; x < W + 2; x++) {
-		linebuf.insert_linebuf(v0);
-	}
-	linebuf.insert_linebuf(v0);
-	for (int x = 1; x < W + 1; x++) {
-		int c = in[ptr++];
-		T v = I3(c);
-		linebuf.insert_linebuf(v);
-	}
-	linebuf.insert_linebuf(v0);
-
-	for (int y = 2; y < H + 1; y++) {
-		linebuf.slide_window(v0);
-		for (int x = 1; x < W + 1; x++) {
-			int c = in[ptr++];
-			T v = I3(c);
-			linebuf.slide_window(v);
-
-			if (y % 2 == 0 && x % 2 == 0 && 2 <= x && x < W + 1) {
-				win_t<T,3*3> oval = linebuf.get_window();
-				ins.write(oval);
-			}
-		}
-		linebuf.slide_window(v0);
+	for (int xy = 0; xy < H * W; xy++) {
+		T val = in[ptr++];
+		ins.write(val);
 	}
 }
 
@@ -178,12 +200,15 @@ void kernel(int in[HEIGHT * WIDTH],
 {
 	fifo<win_t<int_t<4,4>,3*3>> ins("input_fifo");
 	fifo<int_t<4,16>> pips1("pipe_fifo1");
+	fifo<int_t<4,16>> pips2("pipe_fifo2");
 
+	WindowBuffer<640, 640, 3, int_t<4,4>, win_t<int_t<4,4>,3*3>, 1, 2> backbone_model0_buffer1;
 	Conv2D<320, 320, 4, 3, 16, 7> backbone_model0_conv1;
 
 	read_input<640, 640, int_t<4,4>>(in, ins);
-	backbone_model0_conv1.compute<int_t<4,4>, int_t<4,16>>(ins, pips1,
+	backbone_model0_buffer1.path_through(ins, pips1);
+	backbone_model0_conv1.compute<int_t<4,4>, int_t<4,16>>(pips1, pips2,
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold); // [16][7]
-	write_result<int_t<4,16>>(pips1);
+	write_result<int_t<4,16>>(pips2);
 }
