@@ -1,6 +1,41 @@
 //#include <stdio.h>
+#include <ap_int.h>
+#include <hls_stream.h>
+#include <hls_vector.h>
+#include <hls_math.h>
 #include "kernel.hpp"
-#include "params.hpp"
+//#include "params.hpp"
+
+template <int W, int N>
+class int_t {
+private:
+        ap_uint<W*N> buf_;
+public:
+        int_t() : buf_(0) {}
+        int_t(int i) : buf_(i) {}
+        int_t(unsigned int ui) : buf_(ui) {}
+        int_t(long l) : buf_(l) {}
+        int_t(unsigned long ul) : buf_(ul) {}
+        int_t(const char* s) : buf_(s) {}
+
+        inline ap_range_ref<W*N, false> operator[](size_t index) const {
+                assert(index < N);
+                return buf_(W * N - W * index - 1, W * (N - 1) - W * index);
+        }
+
+        inline ap_range_ref<W*N, false> operator[](size_t index) {
+                assert(index < N);
+                return buf_(W * N - W * index - 1, W * (N - 1) - W * index);
+        }
+};
+
+template <typename T>
+using fifo = hls::stream<T>;
+
+template <typename T, int N>
+using win_t = hls::vector<T, N>;
+
+using int4_t = ap_uint<4>;
 
 int16_t muladd(int_t<4,4> vu, int_t<4,4> wu) {
 	int16_t acc = 0;
@@ -168,60 +203,52 @@ public:
 template <int H, int W, typename T>
 void read_input(const int in[H * W], fifo<T>& ins) {
 	for (int xy = 0; xy < H * W; xy++) {
+#pragma HLS unroll factor=16 skip_exit_check
 		T val = in[xy];
 		ins.write(val);
 	}
 }
 
 template <typename T>
-void write_result(fifo<T>& outs) {
-	for (int y = 0; y < 320; y++) {
-		for (int x = 0; x < 320; x++) {
+void write_result(int out[16], fifo<T>& outs) {
+	int acc = 0;
+	for (int y = 0; y < 80; y++) {
+#pragma HLS pipeline
+		for (int x = 0; x < 80; x++) {
 			T val = outs.read();
 			//printf("[ ");
-			for (int z = 0; z < 16; z++) {
-				//printf("%d ", val[z]);
+			for (int w = 0; w < 9; w++) {
+				for (int z = 0; z < 4; z++) {
+					int v = val[w][z];
+					acc += v;
+					//printf("%d ", val[z]);
+				}
 			}
 			//printf("]\n");
 		}
 	}
+	out[0] = acc;
 }
 
-const int WIDTH = 640;
-const int HEIGHT = 640;
+const int WIDTH = 160;
+const int HEIGHT = 160;
 
-void kernel(int in[HEIGHT * WIDTH],
-	int out_obj_8[6400 * 1], int out_cls_8[6400 * 1],
-	int out_bbox_8[6400 * 4], int out_kps_8[6400 * 10],
-	int out_obj_16[1600 * 1], int out_cls_16[1600 * 1],
-	int out_bbox_16[1600 * 4], int out_kps_16[1600 * 10],
-	int out_obj_32[400 * 1], int out_cls_32[400 * 1],
-	int out_bbox_32[400 * 4], int out_kps_32[400 * 10])
-{
+void kernel(int in[HEIGHT * WIDTH], int out[16]) {
+#pragma HLS interface axis port=in
+#pragma HLS array_partition variable=in cyclic factor=16
+
 	fifo<int_t<4,4>> ins("input_fifo");
 	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
-	fifo<int_t<4,16>> pips2("pipe_fifo2");
+	//fifo<int_t<4,16>> pips2("pipe_fifo2");
 
-	WindowBuffer<640, 640, 3, int_t<4,4>, win_t<int_t<4,4>,3*3>, 1, 2> backbone_model0_buffer1;
-	Conv2D<320, 320, 4, 3, 16, 7> backbone_model0_conv1;
+	WindowBuffer<160, 160, 3, int_t<4,4>, win_t<int_t<4,4>,3*3>, 1, 2> buf1;
+	//Conv2D<320, 320, 4, 3, 16, 7> backbone_model0_conv1;
 
-	read_input<640, 640, int_t<4,4>>(in, ins);
-	//backbone_model0_buffer1.pass_through(ins, pips1);
+#pragma HLS dataflow
+	read_input<160, 160, int_t<4,4>>(in, ins);
+	buf1.pass_through(ins, pips1);
 	//backbone_model0_conv1.compute<int_t<4,4>, int_t<4,16>>(pips1, pips2,
 	//	backbone_model0_conv1_weight, // [16][9]
 	//	backbone_model0_relu1_threshold); // [16][7]
-	//write_result<int_t<4,16>>(pips2);
-
-	out_obj_8[0] = 0;
-	out_cls_8[0] = 0;
-	out_bbox_8[0] = 0;
-	out_kps_8[0] = 0;
-	out_obj_16[0] = 0;
-	out_cls_16[0] = 0;
-	out_bbox_16[0] = 0;
-	out_kps_16[0] = 0;
-	out_obj_32[0] = 0;
-	out_cls_32[0] = 0;
-	out_bbox_32[0] = 0;
-	out_kps_32[0] = 0;
+	write_result<win_t<int_t<4,4>,3*3>>(out, pips1);
 }

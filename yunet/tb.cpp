@@ -7,30 +7,16 @@ extern uint32_t images[640 * 640];
 
 int main(int argc, char** argv)
 {
-	int input[640 * 640];
-	for (int y = 0; y < 640; y++) {
-		for (int x = 0; x < 640; x++) {
-			input[y * 640 + x] = images[y * 640 + x];
+	int input[160 * 160];
+	for (int y = 0; y < 160; y++) {
+		for (int x = 0; x < 160; x++) {
+			input[y * 160 + x] = images[y * 640 + x];
 		}
 	}
 
-	int out_obj_8[6400 * 1];
-	int out_cls_8[6400 * 1];
-	int out_bbox_8[6400 * 4];
-	int out_kps_8[6400 * 10];
-	int out_obj_16[1600 * 1];
-	int out_cls_16[1600 * 1];
-	int out_bbox_16[1600 * 4];
-	int out_kps_16[1600 * 10];
-	int out_obj_32[400 * 1];
-	int out_cls_32[400 * 1];
-	int out_bbox_32[400 * 4];
-	int out_kps_32[400 * 10];
+	int out[16];
 
-	kernel(input,
-		out_obj_8, out_cls_8, out_bbox_8, out_kps_8,
-		out_obj_16, out_cls_16, out_bbox_16, out_kps_16,
-		out_obj_32, out_cls_32, out_bbox_32, out_kps_32);
+	kernel(input, out);
 
 	return EXIT_SUCCESS; //EXIT_FAILURE;
 }
