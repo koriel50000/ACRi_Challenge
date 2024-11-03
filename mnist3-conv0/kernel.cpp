@@ -138,12 +138,12 @@ public:
 template <int W, int KN, typename T, typename WT>
 class LineBuffer {
 private:
-	hls::vector<T, (KN - 1) * W> buf_;
+	hls::vector<T, W * (KN - 1)> buf_;
 	Window<KN, KN, T, WT> window_;
 
 	void shift_pixels_up() {
 #pragma HLS inline
-		for (int i = 0; i < (KN - 1) * W - 1; i++) {
+		for (int i = 0; i < W * (KN - 1) - 1; i++) {
 #pragma HLS unroll
 			buf_[i] = buf_[i + 1];
 		}
@@ -151,7 +151,7 @@ private:
 
 	void insert_bottom_row(T value) {
 #pragma HLS inline
-		buf_[(KN - 1) * W - 1] = value;
+		buf_[W * (KN - 1) - 1] = value;
 	}
 
 	void get_col(T value[KN - 1]) {
@@ -273,13 +273,13 @@ public:
 using Buffer0 = WindowBuffer<28, 28, 5, bit_t, int_t<1,25>>;
 using Conv0 = Conv2D<int_t<1,25>, 28, 28, 1, 5, 16, 3>;
 
-template <int H, int W, int KN>
-void read_input(const int in[H * W], fifo<bit_t>& ins) {
+template <int H, int W, typename T>
+void read_input(const int in[H * W], fifo<T>& ins) {
 
 	for (int xy = 0; xy < H * W; xy++) {
-#pragma HLS pipeline factor=W skip_exit_check
-		bit_t v = in[xy];
-		ins.write(v);
+#pragma HLS unroll factor=W skip_exit_check
+		T val = in[xy];
+		ins.write(val);
 	}
 }
 
@@ -314,7 +314,7 @@ void kernel(
 	Conv0 conv0;
 
 #pragma HLS dataflow
-	read_input<28, 28, 5>(in, ins);
+	read_input<28, 28, bit_t>(in, ins);
 	buffer0.pass_through(ins, pips1);
 	conv0.compute<int_t<2,16>>(pips1, outs);
 	write_result<24, 24, 16>(out, outs);
