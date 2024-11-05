@@ -7,10 +7,10 @@ extern uint32_t images[640 * 640];
 
 int main(int argc, char** argv)
 {
-	int input[160 * 160];
-	for (int y = 0; y < 160; y++) {
-		for (int x = 0; x < 160; x++) {
-			input[y * 160 + x] = images[y * 640 + x];
+	int input[HEIGHT * WIDTH];
+	for (int y = 0; y < HEIGHT; y++) {
+		for (int x = 0; x < WIDTH; x++) {
+			input[y * WIDTH + x] = images[y * 640 + x];
 		}
 	}
 

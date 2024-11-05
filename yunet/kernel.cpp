@@ -1,41 +1,6 @@
 //#include <stdio.h>
-#include <ap_int.h>
-#include <hls_stream.h>
-#include <hls_vector.h>
-#include <hls_math.h>
 #include "kernel.hpp"
-//#include "params.hpp"
-
-template <int W, int N>
-class int_t {
-private:
-        ap_uint<W*N> buf_;
-public:
-        int_t() : buf_(0) {}
-        int_t(int i) : buf_(i) {}
-        int_t(unsigned int ui) : buf_(ui) {}
-        int_t(long l) : buf_(l) {}
-        int_t(unsigned long ul) : buf_(ul) {}
-        int_t(const char* s) : buf_(s) {}
-
-        inline ap_range_ref<W*N, false> operator[](size_t index) const {
-                assert(index < N);
-                return buf_(W * N - W * index - 1, W * (N - 1) - W * index);
-        }
-
-        inline ap_range_ref<W*N, false> operator[](size_t index) {
-                assert(index < N);
-                return buf_(W * N - W * index - 1, W * (N - 1) - W * index);
-        }
-};
-
-template <typename T>
-using fifo = hls::stream<T>;
-
-template <typename T, int N>
-using win_t = hls::vector<T, N>;
-
-using int4_t = ap_uint<4>;
+#include "params.hpp"
 
 int16_t muladd(int_t<4,4> vu, int_t<4,4> wu) {
 	int16_t acc = 0;
@@ -89,7 +54,7 @@ public:
 template <int W, int KN, typename T, typename WT>
 class LineBuffer {
 private:
-	hls::vector<T, W * (KN - 1)> buf_;
+	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 
 	void shift_pixels_up() {
@@ -103,6 +68,7 @@ private:
 	void insert_bottom_row(T value) {
 #pragma HLS inline
 		buf_[W * (KN - 1) - 1] = value;
+#pragma HLS array_partition variable=buf_
 	}
 
 	void get_col(T value[KN - 1]) {
@@ -136,12 +102,13 @@ public:
 	}
 };
 
-template <int H, int W, int KN, typename IT, typename OT, int PD = 0, int ST = 1>
-class WindowBuffer {
-private:
-	LineBuffer<W + PD, KN, IT, OT> linebuf_;
+template <int H, int W, int KN, typename IT>
+class Conv2D {
 public:
-	void pass_through(fifo<IT>& ins, fifo<OT>& outs) {
+	template <int PD = 0, int ST = 1>
+	void pass_through(fifo<IT>& ins, fifo<win_t<IT,KN*KN>>& outs) {
+		LineBuffer<W + PD, KN, IT, win_t<IT,KN*KN>> linebuf_;
+
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
@@ -162,7 +129,7 @@ public:
 				linebuf_.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
-				OT oval = linebuf_.get_window();
+				win_t<IT,KN*KN> oval = linebuf_.get_window();
 				outs.write(oval);
 			}
 			x++;
@@ -172,23 +139,19 @@ public:
 			}
 		}
 	}
-};
 
-template <int H, int W, int C, int KN, int F, int M>
-class Conv2D {
-public:
-	template <typename T, typename OT>
-	void compute(fifo<win_t<T,KN*KN>>& ins, fifo<OT>& outs,
-		const T weight[F][KN*KN], const int threshold[F][M])
+	template<int OH, int OW, int F, typename OT, int M>
+	void compute(fifo<win_t<IT,KN*KN>>& ins, fifo<OT>& outs,
+		const IT weight[F][KN*KN], const int threshold[F][M])
 	{
-		for (int xy = 0; xy < H * W; xy++) {
-			win_t<T,KN*KN> val = ins.read();
+		for (int xy = 0; xy < OH * OW; xy++) {
+			win_t<IT,KN*KN> val = ins.read();
 			OT oval;
 			for (int z = 0; z < F; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
-					T v = val[k];
-					T w = weight[z][k];
+					IT v = val[k];
+					IT w = weight[z][k];
 					acc += muladd(v, w);
 				}
 				//printf("%d ", acc);
@@ -209,20 +172,18 @@ void read_input(const int in[H * W], fifo<T>& ins) {
 	}
 }
 
-template <typename T>
+template <int H, int W, int C, typename T>
 void write_result(int out[16], fifo<T>& outs) {
 	int acc = 0;
-	for (int y = 0; y < 80; y++) {
+	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
-		for (int x = 0; x < 80; x++) {
+		for (int x = 0; x < W; x++) {
 			T val = outs.read();
 			//printf("[ ");
-			for (int w = 0; w < 9; w++) {
-				for (int z = 0; z < 4; z++) {
-					int v = val[w][z];
-					acc += v;
-					//printf("%d ", val[z]);
-				}
+			for (int z = 0; z < C; z++) {
+				int v = val[z];
+				acc += v;
+				//printf("%d ", val[z]);
 			}
 			//printf("]\n");
 		}
@@ -230,25 +191,28 @@ void write_result(int out[16], fifo<T>& outs) {
 	out[0] = acc;
 }
 
-const int WIDTH = 160;
-const int HEIGHT = 160;
-
 void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 #pragma HLS interface axis port=in
 #pragma HLS array_partition variable=in cyclic factor=16
 
 	fifo<int_t<4,4>> ins("input_fifo");
 	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
-	//fifo<int_t<4,16>> pips2("pipe_fifo2");
+	fifo<int_t<4,16>> pips2("pipe_fifo2");
+	fifo<win_t<int_t<4,16>,1*1>> pips3("pipe_fifo3");
+	fifo<int_t<4,16>> pips4("pipe_fifo4");
 
-	WindowBuffer<160, 160, 3, int_t<4,4>, win_t<int_t<4,4>,3*3>, 1, 2> buf1;
-	//Conv2D<320, 320, 4, 3, 16, 7> backbone_model0_conv1;
+	Conv2D<160,160,3,int_t<4,4>> backbone_model0_conv1;
+	Conv2D<80,80,1,int_t<4,16>> backbone_model0_conv2;
 
 #pragma HLS dataflow
 	read_input<160, 160, int_t<4,4>>(in, ins);
-	buf1.pass_through(ins, pips1);
-	//backbone_model0_conv1.compute<int_t<4,4>, int_t<4,16>>(pips1, pips2,
-	//	backbone_model0_conv1_weight, // [16][9]
-	//	backbone_model0_relu1_threshold); // [16][7]
-	write_result<win_t<int_t<4,4>,3*3>>(out, pips1);
+	backbone_model0_conv1.pass_through<1,2>(ins, pips1);
+	backbone_model0_conv1.compute<80,80,16,int_t<4,16>,7>(pips1, pips2,
+		backbone_model0_conv1_weight, // [16][9]
+		backbone_model0_relu1_threshold); // [16][7]
+	backbone_model0_conv2.pass_through(pips2, pips3);
+	backbone_model0_conv2.compute<80,80,16,int_t<4,4>,14>(pips3, pips4,
+		backbone_model0_conv2_conv1_weight, // [16][1]
+		backbone_model0_conv2_quant1_threshold); // [16][14]
+	write_result<80, 80, 16, int_t<4,16>>(out, pips4);
 }
