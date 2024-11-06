@@ -211,7 +211,7 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold); // [16][7]
 	backbone_model0_conv2.pass_through(pips2, pips3);
-	backbone_model0_conv2.compute<80,80,16,int_t<4,4>,14>(pips3, pips4,
+	backbone_model0_conv2.compute<80,80,16,int_t<4,16>,14>(pips3, pips4,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold); // [16][14]
 	write_result<80, 80, 16, int_t<4,16>>(out, pips4);
