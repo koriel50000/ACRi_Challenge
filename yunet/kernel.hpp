@@ -5,8 +5,8 @@
 #include <hls_stream.h>
 #include <hls_vector.h>
 
-const int WIDTH = 640;
-const int HEIGHT = 640;
+const int WIDTH = 320;
+const int HEIGHT = 320;
 
 template <int W, int N>
 class int_t {
