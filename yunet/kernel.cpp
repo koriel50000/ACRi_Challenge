@@ -2,15 +2,51 @@
 #include "kernel.hpp"
 #include "params.hpp"
 
+void mul66(ap_uint<6> i, ap_uint<6>& o) {
+	static const ap_uint<6> table[] = {
+		0, 0,  0,  0,  0,  0,  0,  0,
+		0, 1,  2,  3,  4,  5,  6,  7,
+		0, 2,  4,  6,  8, 10, 12, 14,
+		0, 3,  6,  9, 12, 15, 18, 21,
+		0, 4,  7, 12, 16, 20, 24, 28,
+		0, 5, 10, 15, 20, 25, 30, 35,
+		0, 6, 12, 18, 24, 30, 36, 42,
+		0, 7, 14, 21, 28, 35, 42, 49,
+	};
+	o = table[i];
+}
+
+int16_t mul(const int4_t v, const int4_t w) {
+	bit_t vsign = v[3];
+	bit_t wsign = w[3];
+	ap_uint<3> vval = (vsign == 1) ? (-v)(2, 0) : v(2, 0);
+	ap_uint<3> wval = (wsign == 1) ? (-w)(2, 0) : w(2, 0);
+	ap_uint<6> oval;
+	mul66((vval, wval), oval);
+	return (vsign ^ wsign == 1) ? -oval : oval;
+}
+
 template <int C>
 int16_t muladd(const int_t<4,C> vu, const int_t<4,C> wu) {
-	int16_t acc = 0;
+	const int p = ilogb(C);
+	int16_t t[C];
+#pragma HLS array_partition variable=t
+
 	for (int i = 0; i < C; i++) {
+#pragma HLS unroll
 		int4_t v = vu[i];
 		int4_t w = wu[i];
-		acc += v * w;
+		t[i] = mul(v, w);
 	}
-	return acc;
+
+	for (int j = 0, d = 1; j < p; j++, d *= 2) {
+		for (int i = 0; i + d < C; i += d * 2) {
+#pragma HLS unroll
+			t[i] += t[i + d];
+		}
+	}
+
+	return t[0];
 }
 
 template <int M>
