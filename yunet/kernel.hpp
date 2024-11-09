@@ -32,6 +32,7 @@ public:
 };
 
 using int4_t = ap_int<4>;
+using bit_t = ap_int<1>;
 
 template <typename T, int N>
 using win_t = hls::vector<T, N>;

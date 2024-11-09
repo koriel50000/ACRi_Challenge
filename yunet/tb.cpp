@@ -17,6 +17,7 @@ int main(int argc, char** argv)
 	int out[16];
 
 	kernel(input, out);
+    printf("out[0]=%d\n", out[0]);
 
 	return EXIT_SUCCESS; //EXIT_FAILURE;
 }
