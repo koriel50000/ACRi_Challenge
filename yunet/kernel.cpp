@@ -2,13 +2,13 @@
 #include "kernel.hpp"
 #include "params.hpp"
 
-int16_t muladd(int_t<4,4> vu, int_t<4,4> wu) {
+template <int C>
+int16_t muladd(const int_t<4,C> vu, const int_t<4,C> wu) {
 	int16_t acc = 0;
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < C; i++) {
 		int4_t v = vu[i];
 		int4_t w = wu[i];
-		int sign = (v[3] ^ w[3] == 1) ? -1 : 1;
-		acc += sign * v[2,0] * w[2,0];
+		acc += v * w;
 	}
 	return acc;
 }
@@ -21,7 +21,7 @@ int4_t batch_norm(const int16_t acc, const int threshold[M]) {
 			m = i + 1 + (7 - M);
 		}
 	}
-	return m; // TODO sign(1):(3)
+	return m;
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
@@ -102,18 +102,17 @@ public:
 	}
 };
 
-template <int H, int W, int KN, typename IT>
+template <int H, int W, int C, int KN, int PD = 0, int ST = 1>
 class Conv2D {
 public:
-	template <int PD = 0, int ST = 1>
-	void pass_through(fifo<IT>& ins, fifo<win_t<IT,KN*KN>>& outs) {
-		LineBuffer<W + PD, KN, IT, win_t<IT,KN*KN>> linebuf_;
+	void windowize(fifo<int_t<4,C>>& ins, fifo<win_t<int_t<4,C>,KN*KN>>& outs) {
+		LineBuffer<W + PD, KN, int_t<4,C>, win_t<IT,KN*KN>> linebuf_;
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
 #pragma HLS pipeline
-			IT val;
+			int_t<4,C> val;
 			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
 			{
@@ -122,16 +121,19 @@ public:
 			else {
 				val = 0;
 			}
+
 			if (i < (W + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
 			}
 			else {
 				linebuf_.slide_window(val);
 			}
+
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
-				win_t<IT,KN*KN> oval = linebuf_.get_window();
+				win_t<int_t<4,C>,KN*KN> oval = linebuf_.get_window();
 				outs.write(oval);
 			}
+
 			x++;
 			if (x >= W - (KN - 1) + PD * 2) {
 				x = 0 - (KN - 1) + PD;
@@ -140,19 +142,19 @@ public:
 		}
 	}
 
-	template<int OH, int OW, int F, typename OT, int M>
-	void compute(fifo<win_t<IT,KN*KN>>& ins, fifo<OT>& outs,
-		const IT weight[F][KN*KN], const int threshold[F][M])
+	template<int OH, int OW, int F, int M>
+	void compute(fifo<win_t<int_t<4,C>,KN*KN>>& ins, fifo<int_t<4,F>>& outs,
+		const int_t<4,C> weight[F][KN*KN], const int threshold[F][M])
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
-			win_t<IT,KN*KN> val = ins.read();
-			OT oval;
+			win_t<int_t<4,C>,KN*KN> val = ins.read();
+			int_t<4,F> oval;
 			for (int z = 0; z < F; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
-					IT v = val[k];
-					IT w = weight[z][k];
-					acc += muladd(v, w);
+					int_t<4,C> v = val[k];
+					int_t<4,C> w = weight[z][k];
+					acc += muladd<C>(v, w);
 				}
 				//printf("%d ", acc);
 				oval[z] = batch_norm<M>(acc, threshold[z]);
@@ -163,22 +165,22 @@ public:
 	}
 };
 
-template <int H, int W, typename T>
-void read_input(const int in[H * W], fifo<T>& ins) {
+template <int H, int W, int C>
+void read_input(const int in[H * W], fifo<int_t<4,C>>& ins) {
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=16 skip_exit_check
-		T val = in[xy];
+		int_t<4,C> val = in[xy];
 		ins.write(val);
 	}
 }
 
-template <int H, int W, int C, typename T>
-void write_result(int out[16], fifo<T>& outs) {
+template <int H, int W, int C>
+void write_result(int out[16], fifo<int_t<4,C>>& outs) {
 	int acc = 0;
 	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
-			T val = outs.read();
+			int_t<4,C> val = outs.read();
 			//printf("[ ");
 			for (int z = 0; z < C; z++) {
 				int v = val[z];
@@ -201,18 +203,18 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	fifo<win_t<int_t<4,16>,1*1>> pips3("pipe_fifo3");
 	fifo<int_t<4,16>> pips4("pipe_fifo4");
 
-	Conv2D<160,160,3,int_t<4,4>> backbone_model0_conv1;
-	Conv2D<80,80,1,int_t<4,16>> backbone_model0_conv2;
+	Conv2D<160,160,4,3,1,2> backbone_model0_conv1;
+	Conv2D<80,80,16,1> backbone_model0_conv2;
 
 #pragma HLS dataflow
-	read_input<160, 160, int_t<4,4>>(in, ins);
-	backbone_model0_conv1.pass_through<1,2>(ins, pips1);
-	backbone_model0_conv1.compute<80,80,16,int_t<4,16>,7>(pips1, pips2,
+	read_input<160,160,4>(in, ins);
+	backbone_model0_conv1.windowize(ins, pips1);
+	backbone_model0_conv1.compute<80,80,16,7>(pips1, pips2,
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold); // [16][7]
-	backbone_model0_conv2.pass_through(pips2, pips3);
-	backbone_model0_conv2.compute<80,80,16,int_t<4,16>,14>(pips3, pips4,
+	backbone_model0_conv2.windowize(pips2, pips3);
+	backbone_model0_conv2.compute<80,80,16,14>(pips3, pips4,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold); // [16][14]
-	write_result<80, 80, 16, int_t<4,16>>(out, pips4);
+	write_result<80, 80, 16>(out, pips4);
 }

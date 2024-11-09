@@ -31,17 +31,17 @@ public:
         }
 };
 
-template <typename T>
-using fifo = hls::stream<T>;
+using int4_t = ap_int<4>;
 
 template <typename T, int N>
 using win_t = hls::vector<T, N>;
 
-using int4_t = ap_uint<4>;
+template <typename T>
+using fifo = hls::stream<T>;
 
 extern "C" {
 void kernel(
-  int in[160 * 160],
+  int in[HEIGHT * WIDTH],
   int out[16]
 );
 }
