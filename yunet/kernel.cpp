@@ -221,6 +221,47 @@ public:
 };
 
 template <int H, int W, int C>
+class MaxPool2x2 {
+private:
+	void maxpool(const <int_t<4,C> v1, const int_t<4,C> v2, int_t<4,C>& ov) {
+		for (int z = 0; z < C; z++) {
+#pragma HLS unroll
+			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
+		}
+	}
+public:
+	void compute_h(fifo<int_t<4,C>>& ins, fifo<int_t<4,C>>& outs) {
+		for (int xy = 0; xy < H * W / 2; xy++) {
+#pragma HLS pipeline
+			int_t<4,C> val1 = ins.read();
+			int_t<4,C> val2 = ins.read();
+			int_t<4,C> oval;
+			maxpool(val1, val2, oval);
+			outs.write(oval);
+		}
+	}
+
+	void compute_v(fifo<int_t<4,C>>& ins, fifo<int_t<4,C>>& outs) {
+		int_t<4,C> buf[W / 2];
+#pragma HLS array_partition variable=buf
+
+		for (int y = 0; y < H / 2; y++) {
+#pragma HLS pipeline
+			for (int x = 0; x < W / 2; x++) {
+				buf[x] = ins.read();
+			}
+			for (int x = 0; x < W / 2; x++) {
+				int_t<4,C> val1 = buf[x];
+				int_t<4,C> val2 = ins.read();
+				int_t<4,C> oval;
+				maxpool(val1, val2, oval);
+				outs.write(oval);
+			}
+		}
+	}
+};
+
+template <int H, int W, int C>
 void read_input(const int in[H * W], fifo<int_t<4,C>>& ins) {
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=16 skip_exit_check
@@ -256,9 +297,13 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
 	fifo<int_t<4,16>> pips2("pipe_fifo2");
 	fifo<int_t<4,16>> pips3("pipe_fifo3");
+	fifo<int_t<4,16>> pips4("pipe_fifo4");
+	fifo<int_t<4,16>> pips5("pipe_fifo5");
 
 	Conv2D<320,320,4,3,1,2> backbone_model0_conv1;
 	Conv2D<160,160,16,1> backbone_model0_conv2;
+	Conv2D<160,160,16,3,1> backbone_model0_conv3;
+	MaxPool2x2<160, 160, 16> backbone_model0_maxpool4;
 
 #pragma HLS dataflow
 	read_input<320,320,4>(in, ins);
@@ -269,5 +314,10 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	backbone_model0_conv2.compute<160,160,16,14>(pips2, pips3,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold); // [16][14]
-	write_result<160, 160, 16>(out, pips3);
+	backbone_model0_conv2.compute<160,160,16,7>(pips2, pips3,
+		backbone_model0_conv2_conv2_weight, // [16][9]
+		backbone_model0_conv2_relu2_threshold); // [16][7]
+	backbone_model0_maxpool4.compute_h(pips3, pips4);
+	backbone_model0_maxpool4.compute_v(pips4, pips5);
+	write_result<80, 80, 16>(out, pips5);
 }
