@@ -106,7 +106,7 @@ template <int H, int W, int C, int KN, int PD = 0, int ST = 1>
 class Conv2D {
 public:
 	void windowize(fifo<int_t<4,C>>& ins, fifo<win_t<int_t<4,C>,KN*KN>>& outs) {
-		LineBuffer<W + PD, KN, int_t<4,C>, win_t<IT,KN*KN>> linebuf_;
+		LineBuffer<W + PD, KN, int_t<4,C>, win_t<int_t<4,C>,KN*KN>> linebuf_;
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
@@ -166,6 +166,27 @@ public:
 };
 
 template <int H, int W, int C>
+class Conv2D<H, W, C, 1> {
+public:
+	template<int OH, int OW, int F, int M>
+	void compute(fifo<int_t<4,C>>& ins, fifo<int_t<4,F>>& outs,
+		const int_t<4,C> weight[F][1], const int threshold[F][M])
+	{
+		for (int xy = 0; xy < OH * OW; xy++) {
+			int_t<4,C> val = ins.read();
+			int_t<4,F> oval;
+			for (int z = 0; z < F; z++) {
+				int16_t acc = muladd<C>(val, weight[z][1]);
+				//printf("%d ", acc);
+				oval[z] = batch_norm<M>(acc, threshold[z]);
+			}
+			//printf("\n");
+			outs.write(oval);
+		}
+	}
+};
+
+template <int H, int W, int C>
 void read_input(const int in[H * W], fifo<int_t<4,C>>& ins) {
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=16 skip_exit_check
@@ -200,8 +221,7 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	fifo<int_t<4,4>> ins("input_fifo");
 	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
 	fifo<int_t<4,16>> pips2("pipe_fifo2");
-	fifo<win_t<int_t<4,16>,1*1>> pips3("pipe_fifo3");
-	fifo<int_t<4,16>> pips4("pipe_fifo4");
+	fifo<int_t<4,16>> pips3("pipe_fifo3");
 
 	Conv2D<160,160,4,3,1,2> backbone_model0_conv1;
 	Conv2D<80,80,16,1> backbone_model0_conv2;
@@ -212,9 +232,8 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	backbone_model0_conv1.compute<80,80,16,7>(pips1, pips2,
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold); // [16][7]
-	backbone_model0_conv2.windowize(pips2, pips3);
-	backbone_model0_conv2.compute<80,80,16,14>(pips3, pips4,
+	backbone_model0_conv2.compute<80,80,16,14>(pips2, pips3,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold); // [16][14]
-	write_result<80, 80, 16>(out, pips4);
+	write_result<80, 80, 16>(out, pips3);
 }
