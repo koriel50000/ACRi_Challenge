@@ -34,7 +34,7 @@ int16_t muladd(const int_t<4,C> vu, const int_t<4,C> wu) {
 
 	int16_t acc = 0;
 	for (int i = 0; i < C; i++) {
-#pragma HLS unroll
+#pragma HLS pipeline
 		int4_t v = vu[i];
 		int4_t w = wu[i];
 		acc += mul(v, w);
@@ -54,6 +54,7 @@ template <int M>
 int4_t batch_norm(const int16_t acc, const int threshold[M]) {
 	int16_t m = 7 - M;
 	for (int i = 0; i < M; i++) {
+#pragma HLS pipeline
 		if (acc >= threshold[i]) {
 			m = i + 1 + (7 - M);
 		}
@@ -184,6 +185,7 @@ public:
 		const int_t<4,C> weight[F][KN*KN], const int threshold[F][M])
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
+#pragma HLS pipeline
 			win_t<int_t<4,C>,KN*KN> val = ins.read();
 			int_t<4,F> oval;
 			for (int z = 0; z < F; z++) {
@@ -210,6 +212,7 @@ public:
 		const int_t<4,C> weight[F][1], const int threshold[F][M])
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
+#pragma HLS pipeline
 			int_t<4,C> val = ins.read();
 			int_t<4,F> oval;
 			for (int z = 0; z < F; z++) {
@@ -260,16 +263,16 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	fifo<int_t<4,16>> pips2("pipe_fifo2");
 	fifo<int_t<4,16>> pips3("pipe_fifo3");
 
-	Conv2D<160,160,4,3,1,2> backbone_model0_conv1;
-	Conv2D<80,80,16,1> backbone_model0_conv2;
+	Conv2D<640,640,4,3,1,2> backbone_model0_conv1;
+	Conv2D<320,320,16,1> backbone_model0_conv2;
 
 #pragma HLS dataflow
-	read_input<160,160,4>(in, ins);
+	read_input<640,640,4>(in, ins);
 	backbone_model0_conv1.windowize(ins, pips1);
-	backbone_model0_conv1.compute<80,80,16,7>(pips1, pips2,
+	backbone_model0_conv1.compute<320,320,16,7>(pips1, pips2,
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold); // [16][7]
-	backbone_model0_conv2.compute<80,80,16,14>(pips2, pips3,
+	backbone_model0_conv2.compute<320,320,16,14>(pips2, pips3,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold); // [16][14]
 	write_result<80, 80, 16>(out, pips3);
