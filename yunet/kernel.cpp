@@ -176,14 +176,14 @@ public:
 		}
 	}
 
-	template<int OH, int OW, int F, int M>
-	void compute(fifo<win_t<int_t<4,C>,KN*KN>>& ins, fifo<int_t<4,F>>& outs,
-		const int_t<4,C> weight[F][KN*KN], const int threshold[F][M])
+	template<int OH, int OW, int OC, int M>
+	void compute(fifo<win_t<int_t<4,C>,KN*KN>>& ins, fifo<int_t<4,OC>>& outs,
+		const int_t<4,C> weight[OC][KN*KN], const int threshold[OC][M])
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
 			win_t<int_t<4,C>,KN*KN> val = ins.read();
-			int_t<4,F> oval;
-			for (int z = 0; z < F; z++) {
+			int_t<4,OC> oval;
+			for (int z = 0; z < OC; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
 					int_t<4,C> v = val[k];
@@ -202,14 +202,14 @@ public:
 template <int H, int W, int C>
 class Conv2D<H, W, C, 1> {
 public:
-	template<int OH, int OW, int F, int M>
-	void compute(fifo<int_t<4,C>>& ins, fifo<int_t<4,F>>& outs,
-		const int_t<4,C> weight[F][1], const int threshold[F][M])
+	template<int OH, int OW, int OC, int M>
+	void compute(fifo<int_t<4,C>>& ins, fifo<int_t<4,OC>>& outs,
+		const int_t<4,C> weight[OC][1], const int threshold[OC][M])
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
 			int_t<4,C> val = ins.read();
-			int_t<4,F> oval;
-			for (int z = 0; z < F; z++) {
+			int_t<4,OC> oval;
+			for (int z = 0; z < OC; z++) {
 				int16_t acc = muladd<C>(val, weight[z][1]);
 				//printf("%d ", acc);
 				oval[z] = batch_norm<M>(acc, threshold[z]);
@@ -223,7 +223,7 @@ public:
 template <int H, int W, int C>
 class MaxPool2x2 {
 private:
-	void maxpool(const <int_t<4,C> v1, const int_t<4,C> v2, int_t<4,C>& ov) {
+	void maxpool(const int_t<4,C> v1, const int_t<4,C> v2, int_t<4,C>& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
@@ -296,13 +296,13 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	fifo<int_t<4,4>> ins("input_fifo");
 	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
 	fifo<int_t<4,16>> pips2("pipe_fifo2");
-	fifo<int_t<4,16>> pips3("pipe_fifo3");
+	fifo<int_t<4,1>> pips3("pipe_fifo3");
 	fifo<int_t<4,16>> pips4("pipe_fifo4");
 	fifo<int_t<4,16>> pips5("pipe_fifo5");
 
 	Conv2D<320,320,4,3,1,2> backbone_model0_conv1;
 	Conv2D<160,160,16,1> backbone_model0_conv2;
-	Conv2D<160,160,16,3,1> backbone_model0_conv3;
+	Conv2D<160,160,1,3,1> backbone_model0_conv3;
 	MaxPool2x2<160, 160, 16> backbone_model0_maxpool4;
 
 #pragma HLS dataflow
@@ -311,13 +311,14 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	backbone_model0_conv1.compute<160,160,16,7>(pips1, pips2,
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold); // [16][7]
-	backbone_model0_conv2.compute<160,160,16,14>(pips2, pips3,
+	backbone_model0_conv2.compute<160,160,1,14>(pips2, pips3,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold); // [16][14]
-	backbone_model0_conv2.compute<160,160,16,7>(pips2, pips3,
+	backbone_model0_conv3.windowize(pips3, pips4);
+	backbone_model0_conv3.compute<160,160,16,7>(pips4, pips5,
 		backbone_model0_conv2_conv2_weight, // [16][9]
 		backbone_model0_conv2_relu2_threshold); // [16][7]
-	backbone_model0_maxpool4.compute_h(pips3, pips4);
-	backbone_model0_maxpool4.compute_v(pips4, pips5);
-	write_result<80, 80, 16>(out, pips5);
+	// backbone_model0_maxpool4.compute_h(pips5, pips6);
+	// backbone_model0_maxpool4.compute_v(pips6, pips7);
+	write_result<160, 160, 16>(out, pips5);
 }
