@@ -311,8 +311,8 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	Conv2D<160,160,1,3,1> backbone_model0_conv2_2;
 	MaxPool2x2<160, 160, 16> backbone_model0_maxpool3;
 
-	Conv2D<160,160,16,1> backbone_model1_conv1_1;
-	Conv2D<160,160,1,3,1> backbone_model1_conv1_2;
+	Conv2D<80,80,16,1> backbone_model1_conv1_1;
+	Conv2D<80,80,1,3,1> backbone_model1_conv1_2;
 
 #pragma HLS dataflow
 	read_input<320,320,4>(in, ins);
