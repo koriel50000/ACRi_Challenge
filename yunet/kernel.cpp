@@ -105,7 +105,7 @@ private:
 	const int KN;
 
 	T buf_[MAX_SIZE * (MAX_KERNEL - 1)];
-	Window<T, WT> window_(KN, KN);
+	Window<T, WT> window_;
 
 	void shift_pixels_up() {
 #pragma HLS inline
@@ -129,7 +129,9 @@ private:
 		}
 	}
 public:
-	LineBuffer(int width, int kernel) : W(kernel), KN(kernel) {}
+	LineBuffer(int width, int kernel) : W(width), KN(kernel)) {
+		window_(kernel, kernel);
+	}
 
 	void insert_linebuf(const T v) {
 		shift_pixels_up();
@@ -166,9 +168,9 @@ private:
 	const int OW;
 public:
 	Conv2D(int height, int width, int kernel, int padding, int stride, int oheight, int owidth) :
-		H(height), W(width), KN(kernel, PD(padding), ST(stride), OH(oheight), OW(owidth)) { }
+		H(height), W(width), KN(kernel), PD(padding), ST(stride), OH(oheight), OW(owidth) { }
 
-	void windowize(fifo<int_t<4,IC>>& ins, fifo<win_t<int_t<4,IC>>& outs) {
+	void windowize(fifo<int_t<4,IC>>& ins, fifo<win_t<int_t<4,IC>>>& outs) {
 		LineBuffer<int_t<4,IC>, win_t<int_t<4,IC>>> linebuf_(W + PD, KN);
 
 		int x = 0 - (KN - 1);
@@ -205,7 +207,7 @@ public:
 	}
 
 	void compute(fifo<win_t<int_t<4,IC>>>& ins, fifo<int_t<4,OC>>& outs,
-		const int_t<4,IC> weight[][], const int threshold[][], bool relu)
+		const int_t<4,IC> *weight[OC], const int *threshold[OC], bool relu)
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
 			win_t<int_t<4,IC>> val = ins.read();
@@ -215,7 +217,7 @@ public:
 				for (int k = 0; k < KN * KN; k++) {
 					int_t<4,IC> v = val[k];
 					int_t<4,IC> w = weight[z][k];
-					acc += muladd<C>(v, w);
+					acc += muladd<IC>(v, w);
 				}
 				//printf("%d ", acc);
 				oval[z] = batch_norm4(acc, threshold[z], relu);
@@ -294,9 +296,9 @@ void stream_to_array(const int size, const int_t<4,C> out[], fifo<int_t<4,C>>& o
 
 template <int IC, int OC>
 void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
-	const int_t<4,IC> weight[OC][], const int threshold[OC][], const bool relu,
-	const int height, const int width, const int kernel,
-	const int padding = 0, const int stride = 1, const int oheight = height, const int owidth = width)
+	const int_t<4,IC> *weight[OC], const int *threshold[OC], const bool relu,
+	const int height, const int width, const int oheight, const int owidth,
+	const int kernel, const int padding = 0, const int stride = 1)
 {
 	fifo<int_t<4,IC>> ins("input_fifo");
 	fifo<win_t<int_t<4,IC>>> pips1("pipe_fifo1");
@@ -304,7 +306,7 @@ void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
 	fifo<int_t<4,OC>> outs("output_fifo");
 
 #pragma HLS dataflow
-	array_to_stream<IC>(height * width, in, ins):
+	array_to_stream<IC>(height * width, in, ins);
 
 	Conv2D<IC,OC> conv2d(height, width, kernel, padding, stride, oheight, owidth);
 	conv2d.windowize(ins, pips1);
@@ -315,14 +317,14 @@ void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
 
 template <int IC, int OC>
 void compute_conv2d_1x1(const int_t<4,IC> in[], int_t<4,OC> out[],
-	const int_t<4,IC> weight[OC][], const int threshold[OC][], const bool relu,
+	const int_t<4,IC> *weight[OC], const int *threshold[OC], const bool relu,
 	const int height, const int width)
 {
 	for (int xy = 0; xy < height * width; xy++) {
 		int_t<4,IC> val = in[xy];
 		int_t<4,OC> oval;
 		for (int z = 0; z < OC; z++) {
-			int16_t acc = muladd<C>(val, weight[z][1]);
+			int16_t acc = muladd<IC>(val, weight[z][1]);
 			oval[z] = batch_norm4(acc, threshold[z], relu);
 		}
 		out[xy] = oval;
@@ -337,9 +339,9 @@ void compute_maxpool_2x2(const int_t<4,C> in[], int_t<4,C> out[], const int heig
 
 #pragma HLS dataflow
 	int size = height * width;
-	array_to_stream<C>(size, in, ins):
+	array_to_stream<C>(size, in, ins);
 
-	MaxPool2x2<16> maxpool(h, w);
+	MaxPool2x2<16> maxpool(height, width);
 	maxpool.compute_h(height, width, ins, pips);
 	maxpool.compute_v(height, width, pips, outs);
 
@@ -388,7 +390,7 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	compute_conv2d<4, 16>(buf4f, buf16b,
 		backbone_model0_conv1_weight, // [16][9]
 		backbone_model0_relu1_threshold, true, // [16][7]
-		320, 320, 3, 1, 2, 160, 160);
+		320, 320, 160, 160, 3, 1, 2);
 	compute_conv2d_1x1<16, 1>(buf16b, buf1f,
 		backbone_model0_conv2_conv1_weight, // [16][1]
 		backbone_model0_conv2_quant1_threshold, false, // [16][14]
@@ -396,7 +398,7 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	compute_conv2d<1, 16>(buf1f, buf16b,
 		backbone_model0_conv2_conv2_weight, // [16][9]
 		backbone_model0_conv2_relu2_threshold, true, // [16][7]
-		160, 160, 3, 1);
+		160, 160, 160, 160, 3, 1);
 	compute_maxpool_2x2<16>(buf16b, buf16f,
 		160, 160);
 
@@ -407,7 +409,7 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	compute_conv2d<1, 16>(buf1b, buf16f,
 		backbone_model1_conv1_conv2_weight, // [16][9]
 		backbone_model1_conv1_relu2_threshold, true, // [16][7]
-		80, 80, 3, 1);
+		80, 80, 80, 80, 3, 1);
 
 	write_result<80, 80, 16>(out, buf16f);
 
