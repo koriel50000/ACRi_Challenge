@@ -129,7 +129,7 @@ private:
 		}
 	}
 public:
-	LineBuffer(int width, int kernel) : W(width), KN(kernel)) {
+	LineBuffer(int width, int kernel) : W(width), KN(kernel) {
 		window_(kernel, kernel);
 	}
 
@@ -207,7 +207,7 @@ public:
 	}
 
 	void compute(fifo<win_t<int_t<4,IC>>>& ins, fifo<int_t<4,OC>>& outs,
-		const int_t<4,IC> *weight[OC], const int *threshold[OC], bool relu)
+		int_t<4,IC> *weight[OC], int *threshold[OC], bool relu)
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
 			win_t<int_t<4,IC>> val = ins.read();
@@ -285,7 +285,7 @@ void array_to_stream(const int size, const int_t<4,C> in[], fifo<int_t<4,C>>& in
 }
 
 template <int C>
-void stream_to_array(const int size, const int_t<4,C> out[], fifo<int_t<4,C>>& outs)
+void stream_to_array(const int size, int_t<4,C> out[], fifo<int_t<4,C>>& outs)
 {
 	for (int i = 0; i < size; i++) {
 #pragma HLS unroll factor=16 skip_exit_check
@@ -296,7 +296,7 @@ void stream_to_array(const int size, const int_t<4,C> out[], fifo<int_t<4,C>>& o
 
 template <int IC, int OC>
 void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
-	const int_t<4,IC> *weight[OC], const int *threshold[OC], const bool relu,
+	int_t<4,IC> *weight[OC], int *threshold[OC], const bool relu,
 	const int height, const int width, const int oheight, const int owidth,
 	const int kernel, const int padding = 0, const int stride = 1)
 {
@@ -317,7 +317,7 @@ void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
 
 template <int IC, int OC>
 void compute_conv2d_1x1(const int_t<4,IC> in[], int_t<4,OC> out[],
-	const int_t<4,IC> *weight[OC], const int *threshold[OC], const bool relu,
+	int_t<4,IC> *weight[OC], int *threshold[OC], const bool relu,
 	const int height, const int width)
 {
 	for (int xy = 0; xy < height * width; xy++) {
@@ -342,8 +342,8 @@ void compute_maxpool_2x2(const int_t<4,C> in[], int_t<4,C> out[], const int heig
 	array_to_stream<C>(size, in, ins);
 
 	MaxPool2x2<16> maxpool(height, width);
-	maxpool.compute_h(height, width, ins, pips);
-	maxpool.compute_v(height, width, pips, outs);
+	maxpool.compute_h(ins, pips);
+	maxpool.compute_v(pips, outs);
 
 	stream_to_array<C>(size / 4, out, outs);
 }
@@ -358,20 +358,17 @@ void read_input(const int in[H * W], int_t<4,C> buf[]) {
 }
 
 template <int H, int W, int C>
-void write_result(int out[16], fifo<int_t<4,C>>& outs) {
+void write_result(int out[16], int_t<4,C> buf[]) {
 	int acc = 0;
-	for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
-		for (int x = 0; x < W; x++) {
-			int_t<4,C> val = outs.read();
-			//printf("[ ");
-			for (int z = 0; z < C; z++) {
-				int v = val[z];
-				acc += v;
-				//printf("%d ", val[z]);
-			}
-			//printf("]\n");
+	for (int xy = 0; xy < H * W; xy++) {
+		int_t<4,C> val = buf[xy];
+		//printf("[ ");
+		for (int z = 0; z < C; z++) {
+			int v = val[z];
+			acc += v;
+			//printf("%d ", val[z]);
 		}
+		//printf("]\n");
 	}
 	out[0] = acc;
 }
@@ -388,27 +385,27 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 	read_input<320,320,4>(in, buf4f);
 
 	compute_conv2d<4, 16>(buf4f, buf16b,
-		backbone_model0_conv1_weight, // [16][9]
-		backbone_model0_relu1_threshold, true, // [16][7]
+		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
+		(int**)backbone_model0_relu1_threshold, true, // [16][7]
 		320, 320, 160, 160, 3, 1, 2);
 	compute_conv2d_1x1<16, 1>(buf16b, buf1f,
-		backbone_model0_conv2_conv1_weight, // [16][1]
-		backbone_model0_conv2_quant1_threshold, false, // [16][14]
+		(int_t<4,16>**)backbone_model0_conv2_conv1_weight, // [16][1]
+		(int**)backbone_model0_conv2_quant1_threshold, false, // [16][14]
 		160, 160);
 	compute_conv2d<1, 16>(buf1f, buf16b,
-		backbone_model0_conv2_conv2_weight, // [16][9]
-		backbone_model0_conv2_relu2_threshold, true, // [16][7]
+		(int_t<4,1>**)backbone_model0_conv2_conv2_weight, // [16][9]
+		(int**)backbone_model0_conv2_relu2_threshold, true, // [16][7]
 		160, 160, 160, 160, 3, 1);
 	compute_maxpool_2x2<16>(buf16b, buf16f,
 		160, 160);
 
 	compute_conv2d_1x1<16, 1>(buf16f, buf1b,
-		backbone_model1_conv1_conv1_weight, // [16][1]
-		backbone_model1_conv1_quant1_threshold, false, // [16][14]
+		(int_t<4,16>**)backbone_model1_conv1_conv1_weight, // [16][1]
+		(int**)backbone_model1_conv1_quant1_threshold, false, // [16][14]
 		80, 80);
 	compute_conv2d<1, 16>(buf1b, buf16f,
-		backbone_model1_conv1_conv2_weight, // [16][9]
-		backbone_model1_conv1_relu2_threshold, true, // [16][7]
+		(int_t<4,1>**)backbone_model1_conv1_conv2_weight, // [16][9]
+		(int**)backbone_model1_conv1_relu2_threshold, true, // [16][7]
 		80, 80, 80, 80, 3, 1);
 
 	write_result<80, 80, 16>(out, buf16f);
