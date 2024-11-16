@@ -8,6 +8,9 @@
 const int WIDTH = 320;
 const int HEIGHT = 320;
 
+const int MAX_SIZE = 320;
+const int MAX_KERNEL = 5;
+
 template <int W, int N>
 class int_t {
 private:
@@ -34,8 +37,8 @@ public:
 using int4_t = ap_int<4>;
 using bit_t = ap_int<1>;
 
-template <typename T, int N>
-using win_t = hls::vector<T, N>;
+template <typename T>
+using win_t = hls::vector<T, MAX_KERNEL*MAX_KERNEL>;
 
 template <typename T>
 using fifo = hls::stream<T>;

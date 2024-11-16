@@ -48,22 +48,34 @@ int16_t muladd(const int_t<4,C> vu, const int_t<4,C> wu) {
 	return acc; //t[0];
 }
 
-template <int M>
-int4_t batch_norm(const int16_t acc, const int threshold[M]) {
-	int16_t m = 7 - M;
-	for (int i = 0; i < M; i++) {
-		if (acc >= threshold[i]) {
-			m = i + 1 + (7 - M);
+int4_t batch_norm4(const int16_t acc, const int threshold[], const bool relu) {
+	if (relu) {
+		for (int i = 0; i < 7; i++) {
+			if (acc < threshold[i]) {
+				return i;
+			}
 		}
+		return 3;
+	} else {
+		for (int i = 0; i < 14; i++) {
+			if (acc < threshold[i]) {
+				return i - 7;
+			}
+		}
+		return 7;
 	}
-	return m;
 }
 
-template <int ROWS, int COLS, typename T, typename WT>
+template <typename T, typename WT>
 class Window {
 private:
+	const int ROWS;
+	const int COLS;
+
 	WT buf_;
 public:
+	Window(int rows, int cols) : ROWS(rows), COLS(cols) {}
+
 	void shift_pixels_left() {
 #pragma HLS inline
 		for (int i = 0; i < ROWS * COLS - 1; i++) {
@@ -72,7 +84,7 @@ public:
 		}
 	}
 
-	void insert_right_col(const T value[ROWS]) {
+	void insert_right_col(const T value[]) {
 #pragma HLS inline
 		for (int i = 0; i < ROWS; i++) {
 #pragma HLS unroll
@@ -86,11 +98,14 @@ public:
 	}
 };
 
-template <int W, int KN, typename T, typename WT>
+template <typename T, typename WT>
 class LineBuffer {
 private:
-	T buf_[W * (KN - 1)];
-	Window<KN, KN, T, WT> window_;
+	const int W;
+	const int KN;
+
+	T buf_[MAX_SIZE * (MAX_KERNEL - 1)];
+	Window<T, WT> window_(KN, KN);
 
 	void shift_pixels_up() {
 #pragma HLS inline
@@ -106,7 +121,7 @@ private:
 #pragma HLS array_partition variable=buf_
 	}
 
-	void get_col(T value[KN - 1]) {
+	void get_col(T value[]) {
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
@@ -114,13 +129,15 @@ private:
 		}
 	}
 public:
+	LineBuffer(int width, int kernel) : W(kernel), KN(kernel) {}
+
 	void insert_linebuf(const T v) {
 		shift_pixels_up();
 		insert_bottom_row(v);
 	}
 
 	void slide_window(const T v) {
-		T rows[KN];
+		T rows[MAX_KERNEL];
 #pragma HLS array_partition variable=rows
 
 		get_col(rows);
@@ -137,16 +154,27 @@ public:
 	}
 };
 
-template <int H, int W, int C, int KN, int PD = 0, int ST = 1>
+template <int IC, int OC>
 class Conv2D {
+private:
+	const int H;
+	const int W;
+	const int KN;
+	const int PD;
+	const int ST;
+	const int OH;
+	const int OW;
 public:
-	void windowize(fifo<int_t<4,C>>& ins, fifo<win_t<int_t<4,C>,KN*KN>>& outs) {
-		LineBuffer<W + PD, KN, int_t<4,C>, win_t<int_t<4,C>,KN*KN>> linebuf_;
+	Conv2D(int height, int width, int kernel, int padding, int stride, int oheight, int owidth) :
+		H(height), W(width), KN(kernel, PD(padding), ST(stride), OH(oheight), OW(owidth)) { }
+
+	void windowize(fifo<int_t<4,IC>>& ins, fifo<win_t<int_t<4,IC>>& outs) {
+		LineBuffer<int_t<4,IC>, win_t<int_t<4,IC>>> linebuf_(W + PD, KN);
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
-			int_t<4,C> val;
+			int_t<4,IC> val;
 			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
 			{
@@ -164,7 +192,7 @@ public:
 			}
 
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
-				win_t<int_t<4,C>,KN*KN> oval = linebuf_.get_window();
+				win_t<int_t<4,IC>> oval = linebuf_.get_window();
 				outs.write(oval);
 			}
 
@@ -176,22 +204,21 @@ public:
 		}
 	}
 
-	template<int OH, int OW, int OC, int M>
-	void compute(fifo<win_t<int_t<4,C>,KN*KN>>& ins, fifo<int_t<4,OC>>& outs,
-		const int_t<4,C> weight[OC][KN*KN], const int threshold[OC][M])
+	void compute(fifo<win_t<int_t<4,IC>>>& ins, fifo<int_t<4,OC>>& outs,
+		const int_t<4,IC> weight[][], const int threshold[][], bool relu)
 	{
 		for (int xy = 0; xy < OH * OW; xy++) {
-			win_t<int_t<4,C>,KN*KN> val = ins.read();
+			win_t<int_t<4,IC>> val = ins.read();
 			int_t<4,OC> oval;
 			for (int z = 0; z < OC; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
-					int_t<4,C> v = val[k];
-					int_t<4,C> w = weight[z][k];
+					int_t<4,IC> v = val[k];
+					int_t<4,IC> w = weight[z][k];
 					acc += muladd<C>(v, w);
 				}
 				//printf("%d ", acc);
-				oval[z] = batch_norm<M>(acc, threshold[z]);
+				oval[z] = batch_norm4(acc, threshold[z], relu);
 			}
 			//printf("\n");
 			outs.write(oval);
@@ -199,30 +226,12 @@ public:
 	}
 };
 
-template <int H, int W, int C>
-class Conv2D<H, W, C, 1> {
-public:
-	template<int OH, int OW, int OC, int M>
-	void compute(fifo<int_t<4,C>>& ins, fifo<int_t<4,OC>>& outs,
-		const int_t<4,C> weight[OC][1], const int threshold[OC][M])
-	{
-		for (int xy = 0; xy < OH * OW; xy++) {
-			int_t<4,C> val = ins.read();
-			int_t<4,OC> oval;
-			for (int z = 0; z < OC; z++) {
-				int16_t acc = muladd<C>(val, weight[z][1]);
-				//printf("%d ", acc);
-				oval[z] = batch_norm<M>(acc, threshold[z]);
-			}
-			//printf("\n");
-			outs.write(oval);
-		}
-	}
-};
-
-template <int H, int W, int C>
+template <int C>
 class MaxPool2x2 {
 private:
+	const int H;
+	const int W;
+
 	void maxpool(const int_t<4,C> v1, const int_t<4,C> v2, int_t<4,C>& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -230,6 +239,8 @@ private:
 		}
 	}
 public:
+	MaxPool2x2(int height, int width) : H(height), W(width) {}
+
 	void compute_h(fifo<int_t<4,C>>& ins, fifo<int_t<4,C>>& outs) {
 		for (int xy = 0; xy < H * W / 2; xy++) {
 #pragma HLS pipeline
@@ -261,12 +272,86 @@ public:
 	}
 };
 
+template <int C>
+void array_to_stream(const int size, const int_t<4,C> in[], fifo<int_t<4,C>>& ins)
+{
+	for (int i = 0; i < size; i++) {
+#pragma HLS unroll factor=16 skip_exit_check
+		int_t<4,C> val = in[i];
+		ins.write(val);
+	}
+}
+
+template <int C>
+void stream_to_array(const int size, const int_t<4,C> out[], fifo<int_t<4,C>>& outs)
+{
+	for (int i = 0; i < size; i++) {
+#pragma HLS unroll factor=16 skip_exit_check
+		int_t<4,C> val = outs.read();
+		out[i] = val;
+	}
+}
+
+template <int IC, int OC>
+void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
+	const int_t<4,IC> weight[OC][], const int threshold[OC][], const bool relu,
+	const int height, const int width, const int kernel,
+	const int padding = 0, const int stride = 1, const int oheight = height, const int owidth = width)
+{
+	fifo<int_t<4,IC>> ins("input_fifo");
+	fifo<win_t<int_t<4,IC>>> pips1("pipe_fifo1");
+	fifo<int_t<4,OC>> pips2("pipe_fifo2");
+	fifo<int_t<4,OC>> outs("output_fifo");
+
+#pragma HLS dataflow
+	array_to_stream<IC>(height * width, in, ins):
+
+	Conv2D<IC,OC> conv2d(height, width, kernel, padding, stride, oheight, owidth);
+	conv2d.windowize(ins, pips1);
+	conv2d.compute(pips1, pips2, weight, threshold, relu);
+
+	stream_to_array<OC>(oheight * owidth, out, outs);
+}
+
+template <int IC, int OC>
+void compute_conv2d_1x1(const int_t<4,IC> in[], int_t<4,OC> out[],
+	const int_t<4,IC> weight[OC][], const int threshold[OC][], const bool relu,
+	const int height, const int width)
+{
+	for (int xy = 0; xy < height * width; xy++) {
+		int_t<4,IC> val = in[xy];
+		int_t<4,OC> oval;
+		for (int z = 0; z < OC; z++) {
+			int16_t acc = muladd<C>(val, weight[z][1]);
+			oval[z] = batch_norm4(acc, threshold[z], relu);
+		}
+		out[xy] = oval;
+	}
+}
+
+template <int C>
+void compute_maxpool_2x2(const int_t<4,C> in[], int_t<4,C> out[], const int height, const int width) {
+	fifo<int_t<4,C>> ins("input_fifo");
+	fifo<int_t<4,C>> pips("pipe_fifo");
+	fifo<int_t<4,C>> outs("output_fifo");
+
+#pragma HLS dataflow
+	int size = height * width;
+	array_to_stream<C>(size, in, ins):
+
+	MaxPool2x2<16> maxpool(h, w);
+	maxpool.compute_h(height, width, ins, pips);
+	maxpool.compute_v(height, width, pips, outs);
+
+	stream_to_array<C>(size / 4, out, outs);
+}
+
 template <int H, int W, int C>
-void read_input(const int in[H * W], fifo<int_t<4,C>>& ins) {
+void read_input(const int in[H * W], int_t<4,C> buf[]) {
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=16 skip_exit_check
 		int_t<4,C> val = in[xy];
-		ins.write(val);
+		buf[xy] = val;
 	}
 }
 
@@ -293,50 +378,70 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 #pragma HLS interface axis port=in
 #pragma HLS array_partition variable=in cyclic factor=16
 
-	fifo<int_t<4,4>> ins("input_fifo");
-	fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
-	fifo<int_t<4,16>> pips2("pipe_fifo2");
-	fifo<int_t<4,1>> pips3("pipe_fifo3");
-	fifo<win_t<int_t<4,1>,3*3>> pips4("pipe_fifo4");
-	fifo<int_t<4,16>> pips5("pipe_fifo5");
-	fifo<int_t<4,16>> pips6("pipe_fifo6");
-	fifo<int_t<4,16>> pips7("pipe_fifo7");
+	int_t<4,1> buf1f[MAX_SIZE], buf1b[MAX_SIZE];
+	int_t<4,4> buf4f[MAX_SIZE], buf4b[MAX_SIZE];
+	int_t<4,16> buf16f[MAX_SIZE], buf16b[MAX_SIZE];
+	int_t<4,64> buf64f[MAX_SIZE], buf64b[MAX_SIZE];
 
-	fifo<int_t<4,1>> pips8("pipe_fifo8");
-	fifo<win_t<int_t<4,1>,3*3>> pips9("pipe_fifo9");
-	fifo<int_t<4,16>> pips10("pipe_fifo10");
+	read_input<320,320,4>(in, buf4f);
 
-	Conv2D<320,320,4,3,1,2> backbone_model0_conv1;
-	Conv2D<160,160,16,1> backbone_model0_conv2_1;
-	Conv2D<160,160,1,3,1> backbone_model0_conv2_2;
-	MaxPool2x2<160, 160, 16> backbone_model0_maxpool3;
-
-	Conv2D<80,80,16,1> backbone_model1_conv1_1;
-	Conv2D<80,80,1,3,1> backbone_model1_conv1_2;
-
-#pragma HLS dataflow
-	read_input<320,320,4>(in, ins);
-	backbone_model0_conv1.windowize(ins, pips1);
-	backbone_model0_conv1.compute<160,160,16,7>(pips1, pips2,
+	compute_conv2d<4, 16>(buf4f, buf16b,
 		backbone_model0_conv1_weight, // [16][9]
-		backbone_model0_relu1_threshold); // [16][7]
-	backbone_model0_conv2_1.compute<160,160,1,14>(pips2, pips3,
+		backbone_model0_relu1_threshold, true, // [16][7]
+		320, 320, 3, 1, 2, 160, 160);
+	compute_conv2d_1x1<16, 1>(buf16b, buf1f,
 		backbone_model0_conv2_conv1_weight, // [16][1]
-		backbone_model0_conv2_quant1_threshold); // [16][14]
-	backbone_model0_conv2_2.windowize(pips3, pips4);
-	backbone_model0_conv2_2.compute<160,160,16,7>(pips4, pips5,
+		backbone_model0_conv2_quant1_threshold, false, // [16][14]
+		160, 160);
+	compute_conv2d<1, 16>(buf1f, buf16b,
 		backbone_model0_conv2_conv2_weight, // [16][9]
-		backbone_model0_conv2_relu2_threshold); // [16][7]
-	backbone_model0_maxpool3.compute_h(pips5, pips6);
-	backbone_model0_maxpool3.compute_v(pips6, pips7);
+		backbone_model0_conv2_relu2_threshold, true, // [16][7]
+		160, 160, 3, 1);
+	compute_maxpool_2x2<16>(buf16b, buf16f,
+		160, 160);
 
-	backbone_model1_conv1_1.compute<80,80,1,14>(pips7, pips8,
+	compute_conv2d_1x1<16, 1>(buf16f, buf1b,
 		backbone_model1_conv1_conv1_weight, // [16][1]
-		backbone_model1_conv1_quant1_threshold); // [16][14]
-	backbone_model1_conv1_2.windowize(pips8, pips9);
-	backbone_model1_conv1_2.compute<80,80,16,7>(pips9, pips10,
+		backbone_model1_conv1_quant1_threshold, false, // [16][14]
+		80, 80);
+	compute_conv2d<1, 16>(buf1b, buf16f,
 		backbone_model1_conv1_conv2_weight, // [16][9]
-		backbone_model1_conv1_relu2_threshold); // [16][7]
+		backbone_model1_conv1_relu2_threshold, true, // [16][7]
+		80, 80, 3, 1);
 
-	write_result<80, 80, 16>(out, pips10);
+	write_result<80, 80, 16>(out, buf16f);
+
+	// fifo<int_t<4,4>> ins("input_fifo");
+	// fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
+	// fifo<int_t<4,16>> pips2("pipe_fifo2");
+	// fifo<int_t<4,1>> pips3("pipe_fifo3");
+	// fifo<win_t<int_t<4,1>,3*3>> pips4("pipe_fifo4");
+	// fifo<int_t<4,16>> pips5("pipe_fifo5");
+	// fifo<int_t<4,16>> pips6("pipe_fifo6");
+	// fifo<int_t<4,16>> pips7("pipe_fifo7");
+
+	// fifo<int_t<4,1>> pips8("pipe_fifo8");
+	// fifo<win_t<int_t<4,1>,3*3>> pips9("pipe_fifo9");
+	// fifo<int_t<4,16>> pips10("pipe_fifo10");
+
+	// Conv2D<320,320,4,3,1,2> backbone_model0_conv1;
+	// Conv2D<160,160,16,1> backbone_model0_conv2_1;
+	// Conv2D<160,160,1,3,1> backbone_model0_conv2_2;
+	// MaxPool2x2<160, 160, 16> backbone_model0_maxpool3;
+
+	// Conv2D<80,80,16,1> backbone_model1_conv1_1;
+	// Conv2D<80,80,1,3,1> backbone_model1_conv1_2;
+
+
+	// backbone_model0_conv1.windowize(ins, pips1);
+	// backbone_model0_conv1.compute<160,160,16,7>(pips1, pips2,
+	// backbone_model0_conv2_1.compute<160,160,1,14>(pips2, pips3,
+	// backbone_model0_conv2_2.windowize(pips3, pips4);
+	// backbone_model0_conv2_2.compute<160,160,16,7>(pips4, pips5,
+	// backbone_model0_maxpool3.compute_h(pips5, pips6);
+	// backbone_model0_maxpool3.compute_v(pips6, pips7);
+
+	// backbone_model1_conv1_1.compute<80,80,1,14>(pips7, pips8,
+	// backbone_model1_conv1_2.windowize(pips8, pips9);
+	// backbone_model1_conv1_2.compute<80,80,16,7>(pips9, pips10,
 }
