@@ -1,4 +1,3 @@
-#include <cassert>
 #include "kernel.hpp"
 #include "params.hpp"
 
@@ -297,8 +296,6 @@ void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
 	fifo<win_t<int_t<4,IC>>> pips1("pipe_fifo1");
 	fifo<int_t<4,OC>> pips2("pipe_fifo2");
 	fifo<int_t<4,OC>> outs("output_fifo");
-
-	assert(kernel == 3);
 
 #pragma HLS dataflow
 	array_to_stream<IC>(height * width, in, ins);
