@@ -1,3 +1,4 @@
+#include <cassert>
 #include "kernel.hpp"
 #include "params.hpp"
 
@@ -66,16 +67,11 @@ int4_t batch_norm4(const int16_t acc, const int threshold[], const bool relu) {
 	}
 }
 
-template <typename T, typename WT>
+template <int ROWS, int COLS, typename T, typename WT>
 class Window {
 private:
-	const int ROWS;
-	const int COLS;
-
 	WT buf_;
 public:
-	Window(int rows, int cols) : ROWS(rows), COLS(cols) {}
-
 	void shift_pixels_left() {
 #pragma HLS inline
 		for (int i = 0; i < ROWS * COLS - 1; i++) {
@@ -105,7 +101,7 @@ private:
 	const int KN;
 
 	T buf_[MAX_SIZE * (MAX_KERNEL - 1)];
-	Window<T, WT> window_;
+	Window<3, 3, T, WT> window_;
 
 	void shift_pixels_up() {
 #pragma HLS inline
@@ -304,6 +300,8 @@ void compute_conv2d(const int_t<4,IC> in[], int_t<4,OC> out[],
 	fifo<win_t<int_t<4,IC>>> pips1("pipe_fifo1");
 	fifo<int_t<4,OC>> pips2("pipe_fifo2");
 	fifo<int_t<4,OC>> outs("output_fifo");
+
+	assert(kernel == 3);
 
 #pragma HLS dataflow
 	array_to_stream<IC>(height * width, in, ins);
