@@ -94,13 +94,12 @@ public:
 	}
 };
 
-template <typename T, typename WT>
+template <int KN, typename T, typename WT>
 class LineBuffer {
 private:
 	const int W;
-	const int KN;
 
-	T buf_[MAX_SIZE * (MAX_KERNEL - 1)];
+	T buf_[MAX_SIZE * (KN - 1)];
 	Window<3, 3, T, WT> window_;
 
 	void shift_pixels_up() {
@@ -125,9 +124,7 @@ private:
 		}
 	}
 public:
-	LineBuffer(int width, int kernel) : W(width), KN(kernel) {
-		window_(kernel, kernel);
-	}
+	LineBuffer(int width) : W(width) {}
 
 	void insert_linebuf(const T v) {
 		shift_pixels_up();
@@ -135,7 +132,7 @@ public:
 	}
 
 	void slide_window(const T v) {
-		T rows[MAX_KERNEL];
+		T rows[KN];
 #pragma HLS array_partition variable=rows
 
 		get_col(rows);
@@ -167,7 +164,7 @@ public:
 		H(height), W(width), KN(kernel), PD(padding), ST(stride), OH(oheight), OW(owidth) { }
 
 	void windowize(fifo<int_t<4,IC>>& ins, fifo<win_t<int_t<4,IC>>>& outs) {
-		LineBuffer<int_t<4,IC>, win_t<int_t<4,IC>>> linebuf_(W + PD, KN);
+		LineBuffer<3, int_t<4,IC>, win_t<int_t<4,IC>>> linebuf_(W + PD);
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
