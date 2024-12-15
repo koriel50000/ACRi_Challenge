@@ -369,10 +369,10 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 #pragma HLS interface axis port=in
 #pragma HLS array_partition variable=in cyclic factor=16
 
-	int_t<4,1> buf1f[MAX_SIZE], buf1b[MAX_SIZE];
-	int_t<4,4> buf4f[MAX_SIZE], buf4b[MAX_SIZE];
-	int_t<4,16> buf16f[MAX_SIZE], buf16b[MAX_SIZE];
-	int_t<4,64> buf64f[MAX_SIZE], buf64b[MAX_SIZE];
+	static int_t<4,1> buf1f[MAX_SIZE * MAX_SIZE], buf1b[MAX_SIZE * MAX_SIZE];
+	static int_t<4,4> buf4f[MAX_SIZE * MAX_SIZE], buf4b[MAX_SIZE * MAX_SIZE];
+	static int_t<4,16> buf16f[MAX_SIZE * MAX_SIZE], buf16b[MAX_SIZE * MAX_SIZE];
+	static int_t<4,64> buf64f[MAX_SIZE * MAX_SIZE], buf64b[MAX_SIZE * MAX_SIZE];
 
 	read_input<320,320,4>(in, buf4f);
 
@@ -380,27 +380,27 @@ void kernel(int in[HEIGHT * WIDTH], int out[16]) {
 		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
 		(int**)backbone_model0_relu1_threshold, true, // [16][7]
 		320, 320, 160, 160, 3, 1, 2);
-	compute_conv2d_1x1<16, 1>(buf16b, buf1f,
-		(int_t<4,16>**)backbone_model0_conv2_conv1_weight, // [16][1]
-		(int**)backbone_model0_conv2_quant1_threshold, false, // [16][14]
-		160, 160);
-	compute_conv2d<1, 16>(buf1f, buf16b,
-		(int_t<4,1>**)backbone_model0_conv2_conv2_weight, // [16][9]
-		(int**)backbone_model0_conv2_relu2_threshold, true, // [16][7]
-		160, 160, 160, 160, 3, 1);
-	compute_maxpool_2x2<16>(buf16b, buf16f,
-		160, 160);
+	//compute_conv2d_1x1<16, 1>(buf16b, buf1f,
+	//	(int_t<4,16>**)backbone_model0_conv2_conv1_weight, // [16][1]
+	//	(int**)backbone_model0_conv2_quant1_threshold, false, // [16][14]
+	//	160, 160);
+	//compute_conv2d<1, 16>(buf1f, buf16b,
+	//	(int_t<4,1>**)backbone_model0_conv2_conv2_weight, // [16][9]
+	//	(int**)backbone_model0_conv2_relu2_threshold, true, // [16][7]
+	//	160, 160, 160, 160, 3, 1);
+	//compute_maxpool_2x2<16>(buf16b, buf16f,
+	//	160, 160);
 
-	compute_conv2d_1x1<16, 1>(buf16f, buf1b,
-		(int_t<4,16>**)backbone_model1_conv1_conv1_weight, // [16][1]
-		(int**)backbone_model1_conv1_quant1_threshold, false, // [16][14]
-		80, 80);
-	compute_conv2d<1, 16>(buf1b, buf16f,
-		(int_t<4,1>**)backbone_model1_conv1_conv2_weight, // [16][9]
-		(int**)backbone_model1_conv1_relu2_threshold, true, // [16][7]
-		80, 80, 80, 80, 3, 1);
+	//compute_conv2d_1x1<16, 1>(buf16f, buf1b,
+	//	(int_t<4,16>**)backbone_model1_conv1_conv1_weight, // [16][1]
+	//	(int**)backbone_model1_conv1_quant1_threshold, false, // [16][14]
+	//	80, 80);
+	//compute_conv2d<1, 16>(buf1b, buf16f,
+	//	(int_t<4,1>**)backbone_model1_conv1_conv2_weight, // [16][9]
+	//	(int**)backbone_model1_conv1_relu2_threshold, true, // [16][7]
+	//	80, 80, 80, 80, 3, 1);
 
-	write_result<80, 80, 16>(out, buf16f);
+	//write_result<80, 80, 16>(out, buf16f);
 
 	// fifo<int_t<4,4>> ins("input_fifo");
 	// fifo<win_t<int_t<4,4>,3*3>> pips1("pipe_fifo1");
