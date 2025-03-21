@@ -1,8 +1,8 @@
 /*
  * 4bit量子化および演算回路再利用の検証
- * ・weightを1bit符号＋3bit指数部の4bitで表現(-8,-4,-2,-1,-0.5,-0.25,-0.125,0,0.125,0.25,0.5,1,2,4,8)
- * ・バッチ正規化後のactivationを1bit符号＋3bit仮数部の4bitで表現(-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7)
- * ・乗算は符号なし3bitの掛け算(累乗)を、6入力LUTが6個のテーブル参照で計算
+ * ・weightを1bit符号＋3bit指数部の4bitで表現(0,0.125,0.25,0.5,1,2,4,8,NA,-0.125,-0.25,-0.5,-1,-2,-4,-8)
+ * ・バッチ正規化後のactivationを1bit符号＋3bit仮数部の4bitで表現(0,1,2,3,4,5,6,7,NA,-1,-2,-3,-4,-5,-6,-7)
+ * ・乗算は符号なし3bitの掛け算を、6入力LUTが6個のテーブル参照で計算
  * ・演算回路は最大サイズのConv,Maxpoolを用意し、引数で行列サイズを指定して再利用
  * ・ダブルバッファリングで演算結果を一時保存
  */
@@ -42,10 +42,7 @@ public:
 	}
 };
 
-template <typename T>
-using fifo = hls::stream<T>;
-
-void pow66(uint6_t i, uint6_t& o) {
+void mul66(uint6_t i, unit6_t& o) {
 	static const uint6_t table[] = {
 		0,	0,	0,	0,	0,	0,	0,	0,
 		0,	0,	0,	1,	1,	2,	4,	8,
@@ -59,19 +56,19 @@ void pow66(uint6_t i, uint6_t& o) {
 	o = table[i];
 }
 
-int8_t pow(uint4_t v, uint4_t w) {
-	uint6_t oval;
-	pow66((v(2, 0), w(2, 0)), oval);
+int8_t mul(uint4_t v, uint4_t w) {
+	int6_t oval;
+	mul66((v(2, 0), w(2, 0)), oval);
 	return (v[3] ^ w[3] == 1) ? (-oval).to_int() : oval.to_int();
 }
 
-int16_t powadd16(int_t<4,16> vu, int_t<4,16> wi) {
+int16_t muladd16(int_t<4,16> vu, int_t<4,16> wi) {
 	int16_t t[16];
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < 16; i++) {
 #pragma HLS unroll
-		t[i] = pow(vu[i], wi[i]);
+		t[i] = mul(vu[i], wi[i]);
 	}
 
 	for (int d = 2; d <= 16; d *= 2) {
@@ -107,7 +104,7 @@ public:
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
 				int_t<4,K> wi = mat[j * CL + i];
-				int16_t acc = powadd16(vu, wi);
+				int16_t acc = muladd16(vu, wi);
 				outb[j][i] = acc;
 			}
 		}
