@@ -8,7 +8,7 @@
  */
 #include "kernel.hpp"
 #include <ap_int.h>
-#include <hls_stream.h>
+#include <hls_vector.h>
 #include <hls_math.h>
 
 const int FLATTEN = 256;
@@ -42,7 +42,7 @@ public:
 	}
 };
 
-void mul66(uint6_t i, unit6_t& o) {
+void mul66(uint6_t i, uint6_t& o) {
 	static const uint6_t table[] = {
 		0,	0,	0,	0,	0,	0,	0,	0,
 		0,	0,	0,	1,	1,	2,	4,	8,
@@ -57,7 +57,7 @@ void mul66(uint6_t i, unit6_t& o) {
 }
 
 int8_t mul(uint4_t v, uint4_t w) {
-	int6_t oval;
+	uint6_t oval;
 	mul66((v(2, 0), w(2, 0)), oval);
 	return (v[3] ^ w[3] == 1) ? (-oval).to_int() : oval.to_int();
 }
@@ -83,7 +83,7 @@ int16_t muladd16(int_t<4,16> vu, int_t<4,16> wi) {
 template <int CL, int FL, int K>
 class Dense {
 private:
-	hls::vector<int_t<4,K>, CL * FL / K> mat;
+	int_t<4,K> mat[CL * FL / K];
 public:
 	void read(const int weight[CL * FL]) {
 		int ptr = 0;
@@ -100,7 +100,7 @@ public:
 	void compute(int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
 		for (int j = 0; j < FL / K; j++) {
 #pragma HLS pipeline
-			int<4,K> vu = inb[j];
+			int_t<4,K> vu = inb[j];
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
 				int_t<4,K> wi = mat[j * CL + i];
@@ -112,7 +112,7 @@ public:
 };
 
 template <int FL, int K>
-void read_input(const int in[FL], int<4,K> inb[FL / K]) {
+void read_input(const int in[FL], int_t<4,K> inb[FL / K]) {
 	int ptr = 0;
 	for (int j = 0; j < FL / K; j++) {
 #pragma HLS pipeline
@@ -126,7 +126,7 @@ void read_input(const int in[FL], int<4,K> inb[FL / K]) {
 }
 
 template <int CL, int FL, int K>
-void write_result(int out[CL], int<16,CL> outb[FL / K]) {
+void write_result(int out[CL], int_t<16,CL> outb[FL / K]) {
 	static int16_t acc[CL];
 #pragma HLS array_partition variable=acc
 
@@ -137,7 +137,7 @@ void write_result(int out[CL], int<16,CL> outb[FL / K]) {
 
 	for (int j = 0; j < FL / K; j++) {
 #pragma HLS pipeline
-		int<16,CL> val = outb[j];
+		int_t<16,CL> val = outb[j];
 		for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
 			acc[i] += val[i];
