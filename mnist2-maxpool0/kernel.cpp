@@ -68,17 +68,17 @@ private:
 		}
 	}
 
-	void compute_v(const int h, const int w, T outb[], fifo<T>& pips) {
+	void compute_v(const int oh, const int ow, T outb[], fifo<T>& pips) {
 		T buf[W / 2];
 #pragma HLS array_partition variable=buf
 
 		int ptr = 0;
-		for (int y = 0; y < h / 2; y++) {
+		for (int y = 0; y < oh; y++) {
 #pragma HLS pipeline
-			for (int x = 0; x < w / 2; x++) {
+			for (int x = 0; x < ow; x++) {
 				buf[x] = pips.read();
 			}
-			for (int x = 0; x < w / 2; x++) {
+			for (int x = 0; x < ow; x++) {
 				T val1 = buf[x];
 				T val2 = pips.read();
 				T oval;
