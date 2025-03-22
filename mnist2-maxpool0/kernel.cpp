@@ -57,6 +57,7 @@ private:
 	}
 
 	void compute_h(const int h, const int w, T inb[], fifo<T>& pips) {
+		int ptr = 0;
 		for (int i = 0; i < h * w / 2; i++) {
 #pragma HLS pipeline
 			T val1 = inb[ptr++];
@@ -137,7 +138,7 @@ void kernel(int in[HEIGHT * WIDTH * CHANNEL],
 #pragma HLS array_partition variable=even_buf
 #pragma HLS array_partition variable=odd_buf
 
-	MaxPool2x2<int_t<4,CHANNEL>,HEIGHT,WIDTH> maxpool;
+	MaxPool2x2<int_t<4,CHANNEL>,HEIGHT,WIDTH,CHANNEL> maxpool;
 
 #pragma HLS pipeline
 
