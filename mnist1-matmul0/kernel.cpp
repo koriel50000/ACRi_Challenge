@@ -71,10 +71,10 @@ int16_t muladd16(int_t<4,16> vu, int_t<4,16> wi) {
 		t[i] = mul(vu[i], wi[i]);
 	}
 
-	for (int d = 2; d <= 16; d *= 2) {
-		for (int i = 0; i < 16; i += d) {
+	for (int d = 1; d < 16; d *= 2) {
+		for (int i = 0; i < 16; i += d * 2) {
 #pragma HLS unroll
-			t[i] += t[i + d / 2];
+			t[i] += t[i + d];
 		}
 	}
 	return t[0];
