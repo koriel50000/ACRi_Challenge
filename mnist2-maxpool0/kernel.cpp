@@ -20,6 +20,9 @@ const int OHEIGHT = HEIGHT / 2;
 
 using uint4_t = ap_uint<4>;
 
+template <typename T>
+using fifo = hls::stream<T>;
+
 template <int W, int N>
 class int_t {
 private:
@@ -43,9 +46,6 @@ public:
 	}
 };
 
-template <typename T>
-using fifo = hls::stream<T>;
-
 template <typename T, int H, int W, int C>
 class MaxPool2x2 {
 private:
@@ -59,7 +59,7 @@ private:
 	void compute_h(const int h, const int w, T inb[], fifo<T>& pips) {
 		int ptr = 0;
 		for (int i = 0; i < h * w / 2; i++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 			T val1 = inb[ptr++];
 			T val2 = inb[ptr++];
 			T oval;
@@ -74,7 +74,7 @@ private:
 
 		int ptr = 0;
 		for (int y = 0; y < oh; y++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 			for (int x = 0; x < ow; x++) {
 				buf[x] = pips.read();
 			}
