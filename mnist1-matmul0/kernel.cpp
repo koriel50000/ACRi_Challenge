@@ -86,10 +86,13 @@ private:
 	int_t<4,K> mat[CL * FL / K];
 public:
 	void read(const int weight[CL * FL]) {
+#pragma HLS array_partition variable=mat
 		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
+#pragma HLS pipeline
 			for (int j = 0; j < FL / K; j++) {
 				for (int k = 0; k < K; k++) {
+#pragma HLS unroll
 					uint4_t val = (weight[ptr++] << 2) & 0xf;
 					mat[j * CL + i][k] = val;
 				}
@@ -98,12 +101,12 @@ public:
 	}
 
 	void compute(int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
+		int ptr = 0;
 		for (int j = 0; j < FL / K; j++) {
 #pragma HLS pipeline
 			int_t<4,K> vu = inb[j];
 			for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-				int_t<4,K> wi = mat[j * CL + i];
+				int_t<4,K> wi = mat[ptr++];
 				int16_t acc = muladd16(vu, wi);
 				outb[j][i] = acc;
 			}
