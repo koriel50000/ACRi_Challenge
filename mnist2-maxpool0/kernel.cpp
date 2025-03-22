@@ -52,20 +52,20 @@ private:
 		}
 	}
 public:
-	void compute(const int h, const int w, T inb[], T outb[]) {
+	void compute(const int oh, const int ow, T inb[], T outb[]) {
 		T buf[W / 2];
 #pragma HLS array_partition variable=buf
 
 		int iptr = 0;
 		int optr = 0;
-		for (int y = 0; y < h / 2; y++) {
-#pragma HLS pipeline
-			for (int x = 0; x < w / 2; x++) {
+		for (int y = 0; y < oh; y++) {
+//#pragma HLS pipeline
+			for (int x = 0; x < ow; x++) {
 				T oval;
 				maxpool(inb[iptr++], inb[iptr++], oval);
 				buf[x] = oval;
 			}
-			for (int x = 0; x < w / 2; x++) {
+			for (int x = 0; x < ow; x++) {
 				T val1 = buf[x];
 				T val2;
 				maxpool(inb[iptr++], inb[iptr++], val2);
@@ -81,7 +81,7 @@ template<int H, int W, int C>
 void read_input(const int in[H * W * C], int_t<4,C> inb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 		int_t<4,C> val;
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -95,7 +95,7 @@ template<int H, int W, int C>
 void write_result(int out[H * W * C], int_t<4,C> outb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 		int_t<4,C> val = outb[xy];
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -119,9 +119,9 @@ void kernel(int in[HEIGHT * WIDTH * CHANNEL],
 
 	MaxPool2x2<int_t<4,CHANNEL>,HEIGHT,WIDTH,CHANNEL> maxpool;
 
-#pragma HLS pipeline
+//#pragma HLS pipeline
 
 	read_input<HEIGHT,WIDTH,CHANNEL>(in, even_buf);
-	maxpool.compute(HEIGHT, WIDTH, even_buf, odd_buf);
+	maxpool.compute(OHEIGHT, OWIDTH, even_buf, odd_buf);
 	write_result<OHEIGHT,OWIDTH,CHANNEL>(out, odd_buf);
 }
