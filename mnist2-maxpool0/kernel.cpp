@@ -8,6 +8,7 @@
  */
 #include "kernel.hpp"
 #include <ap_int.h>
+#include <hls_stream.h>
 #include <hls_math.h>
 
 const int WIDTH = 24;
@@ -18,6 +19,9 @@ const int OWIDTH = WIDTH / 2;
 const int OHEIGHT = HEIGHT / 2;
 
 using uint4_t = ap_uint<4>;
+
+template <typename T>
+using fifo = hls::stream<T>;
 
 template <int W, int N>
 class int_t {
@@ -51,29 +55,46 @@ private:
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
-public:
-	void compute(const int oh, const int ow, T inb[], T outb[]) {
+
+	void compute_h(const int h, const int w, T inb[], fifo<T>& pips) {
+		int ptr = 0;
+		for (int i = 0; i < h * w / 2; i++) {
+//#pragma HLS pipeline
+			T val1 = inb[ptr++];
+			T val2 = inb[ptr++];
+			T oval;
+			maxpool(val1, val2, oval);
+			pips.write(oval);
+		}
+	}
+
+	void compute_v(const int oh, const int ow, T outb[], fifo<T>& pips) {
 		T buf[W / 2];
 #pragma HLS array_partition variable=buf
 
-		int iptr = 0;
-		int optr = 0;
+		int ptr = 0;
 		for (int y = 0; y < oh; y++) {
 //#pragma HLS pipeline
 			for (int x = 0; x < ow; x++) {
-				T oval;
-				maxpool(inb[iptr++], inb[iptr++], oval);
-				buf[x] = oval;
+				buf[x] = pips.read();
 			}
 			for (int x = 0; x < ow; x++) {
 				T val1 = buf[x];
-				T val2;
-				maxpool(inb[iptr++], inb[iptr++], val2);
+				T val2 = pips.read();
 				T oval;
 				maxpool(val1, val2, oval);
-				outb[optr++] = oval;
+				outb[ptr++] = oval;
 			}
 		}
+	}
+
+public:
+	void compute(const int h, const int w, T inb[], T outb[]) {
+		fifo<T> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		compute_h(h, w, inb, pips);
+		compute_v(h / 2, w / 2, outb, pips);
 	}
 };
 
@@ -122,6 +143,6 @@ void kernel(int in[HEIGHT * WIDTH * CHANNEL],
 //#pragma HLS pipeline
 
 	read_input<HEIGHT,WIDTH,CHANNEL>(in, even_buf);
-	maxpool.compute(OHEIGHT, OWIDTH, even_buf, odd_buf);
+	maxpool.compute(HEIGHT, WIDTH, even_buf, odd_buf);
 	write_result<OHEIGHT,OWIDTH,CHANNEL>(out, odd_buf);
 }
