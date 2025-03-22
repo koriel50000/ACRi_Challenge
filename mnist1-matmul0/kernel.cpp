@@ -8,7 +8,6 @@
  */
 #include "kernel.hpp"
 #include <ap_int.h>
-#include <hls_vector.h>
 #include <hls_math.h>
 
 const int FLATTEN = 256;

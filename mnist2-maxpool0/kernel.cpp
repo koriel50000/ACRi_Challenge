@@ -90,7 +90,7 @@ private:
 
 public:
 	void compute(const int h, const int w, T inb[], T outb[]) {
-		fifo<int_t<4,C>> pips("pipe_fifo");
+		fifo<T> pips("pipe_fifo");
 
 #pragma HLS dataflow
 		compute_h(h, w, inb, pips);
