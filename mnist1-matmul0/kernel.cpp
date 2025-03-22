@@ -157,6 +157,7 @@ void kernel(int in[FLATTEN], int weight[CLASS * FLATTEN], int out[CLASS]) {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=CHUNK_SIZE
+#pragma HLS array_partition variable=weight cyclic factor=CHUNK_SIZE
 #pragma HLS array_partition variable=out
 
 	static int_t<4,CHUNK_SIZE> even_buf[FLATTEN / CHUNK_SIZE];
