@@ -11,6 +11,9 @@
 #include <hls_stream.h>
 #include <hls_math.h>
 
+const int MAX_WIDTH = 32;
+const int MAX_HEIGHT = 32;
+
 const int WIDTH = 24;
 const int HEIGHT = 24;
 const int CHANNEL = 16;
@@ -56,7 +59,7 @@ private:
 		}
 	}
 
-	void compute_h(const int h, const int w, T inb[], fifo<T>& pips) {
+	void compute_h(const int h, const int w, const T inb[], fifo<T>& pips) {
 		int ptr = 0;
 		for (int i = 0; i < h * w / 2; i++) {
 //#pragma HLS pipeline
@@ -89,7 +92,7 @@ private:
 	}
 
 public:
-	void compute(const int h, const int w, T inb[], T outb[]) {
+	void compute(const int h, const int w, const T inb[], T outb[]) {
 		fifo<T> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -135,10 +138,10 @@ void kernel(int in[HEIGHT * WIDTH * CHANNEL],
 
 	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
 	static int_t<4,CHANNEL> odd_buf[OHEIGHT * OWIDTH];
-#pragma HLS array_partition variable=even_buf
-#pragma HLS array_partition variable=odd_buf
+#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
-	MaxPool2x2<int_t<4,CHANNEL>,HEIGHT,WIDTH,CHANNEL> maxpool;
+	MaxPool2x2<int_t<4,CHANNEL>,MAX_HEIGHT,MAX_WIDTH,CHANNEL> maxpool;
 
 //#pragma HLS pipeline
 
