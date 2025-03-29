@@ -160,7 +160,7 @@ void kernel(int in[FLATTEN], int weight[CLASS * FLATTEN], int out[CLASS]) {
 #pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
 #pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
 
-	static int_t<4,K> mat_wi[CL * FL / K];
+	static int_t<4,CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi
 
 	Dense<CLASS,FLATTEN,CHUNK_SIZE> matmul0;
