@@ -143,8 +143,6 @@ void kernel(int in[HEIGHT * WIDTH * CHANNEL],
 
 	MaxPool2x2<int_t<4,CHANNEL>,MAX_HEIGHT,MAX_WIDTH,CHANNEL> maxpool;
 
-//#pragma HLS pipeline
-
 	read_input<HEIGHT,WIDTH,CHANNEL>(in, even_buf);
 	maxpool.compute(HEIGHT, WIDTH, even_buf, odd_buf);
 	write_result<OHEIGHT,OWIDTH,CHANNEL>(out, odd_buf);

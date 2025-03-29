@@ -82,7 +82,7 @@ int16_t muladd16(int_t<4,16> vu, int_t<4,16> wi) {
 template <int CL, int FL, int K>
 class Dense {
 private:
-	int_t<4,K> mat[CL * FL / K];
+	static int_t<4,K> mat[CL * FL / K];
 public:
 	void read(const int weight[CL * FL]) {
 #pragma HLS array_partition variable=mat
@@ -161,12 +161,10 @@ void kernel(int in[FLATTEN], int weight[CLASS * FLATTEN], int out[CLASS]) {
 
 	static int_t<4,CHUNK_SIZE> even_buf[FLATTEN / CHUNK_SIZE];
 	static int_t<16,CLASS> odd_buf[FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=even_buf
-#pragma HLS array_partition variable=odd_buf
+#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
+#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
 
 	Dense<CLASS,FLATTEN,CHUNK_SIZE> matmul0;
-
-#pragma HLS pipeline
 
 	read_input<FLATTEN,CHUNK_SIZE>(in, even_buf);
 	matmul0.read(weight);
