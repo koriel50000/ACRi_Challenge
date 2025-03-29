@@ -81,22 +81,24 @@ int16_t muladd16(const int_t<4,16> vu, const int_t<4,16> wi) {
 template <int CL, int FL, int K>
 class Dense {
 public:
-	void compute(const int weight[CL * FL], const int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
-		static int_t<4,K> mat0[CL * FL / K];
-#pragma HLS array_partition variable=mat0
+	static int_t<4,K> mat[CL * FL / K];
 
-		int ptr0 = 0;
+	void read(const int weight[CL * FL], int_t<4,K> mat[CL * FL / K]) {
+#pragma HLS array_partition variable=mat
+		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
 			for (int j = 0; j < FL / K; j++) {
 				for (int k = 0; k < K; k++) {
 #pragma HLS unroll
-					uint4_t val = (weight[ptr0++] << 2) & 0xf;
-					mat0[j * CL + i][k] = val;
+					uint4_t val = (weight[ptr++] << 2) & 0xf;
+					mat[j * CL + i][k] = val;
 				}
 			}
 		}
+	}
 
+	void compute(const int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
 		int ptr = 0;
 		for (int j = 0; j < FL / K; j++) {
 #pragma HLS pipeline
@@ -164,6 +166,7 @@ void kernel(int in[FLATTEN], int weight[CLASS * FLATTEN], int out[CLASS]) {
 	Dense<CLASS,FLATTEN,CHUNK_SIZE> matmul0;
 
 	read_input<FLATTEN,CHUNK_SIZE>(in, even_buf);
-	matmul0.compute(weight, even_buf, odd_buf);
+	matmul0.read(weight);
+	matmul0.compute(even_buf, odd_buf);
 	write_result<CLASS,FLATTEN,CHUNK_SIZE>(out, odd_buf);
 }
