@@ -11,8 +11,8 @@
 #include <hls_stream.h>
 #include <hls_math.h>
 
-const int MAX_WIDTH = 32;
-const int MAX_HEIGHT = 32;
+const int MAX_WIDTH = 24;
+const int MAX_HEIGHT = 24;
 
 const int WIDTH = 24;
 const int HEIGHT = 24;
@@ -62,7 +62,7 @@ private:
 	void compute_h(const int h, const int w, const T inb[], fifo<T>& pips) {
 		int ptr = 0;
 		for (int i = 0; i < h * w / 2; i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			T val1 = inb[ptr++];
 			T val2 = inb[ptr++];
 			T oval;
@@ -72,12 +72,12 @@ private:
 	}
 
 	void compute_v(const int oh, const int ow, T outb[], fifo<T>& pips) {
-		T buf[W / 2];
+		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
 
 		int ptr = 0;
 		for (int y = 0; y < oh; y++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			for (int x = 0; x < ow; x++) {
 				buf[x] = pips.read();
 			}
@@ -105,7 +105,7 @@ template<int H, int W, int C>
 void read_input(const int in[H * W * C], int_t<4,C> inb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 		int_t<4,C> val;
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -116,10 +116,10 @@ void read_input(const int in[H * W * C], int_t<4,C> inb[H * W]) {
 }
 
 template<int H, int W, int C>
-void write_result(int out[H * W * C], int_t<4,C> outb[H * W]) {
+void write_result(int out[H * W * C], const int_t<4,C> outb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 		int_t<4,C> val = outb[xy];
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
