@@ -235,7 +235,7 @@ public:
 		T wi[], int thr[])
 	{
 		int ptr = 0;
-		for (int j = 0; j < oc * kn * kn; k++) {
+		for (int j = 0; j < oc * kn * kn; j++) {
 			T val;
 			for (int i = 0; i < ic; i++) {
 				val[i] = (weight[ptr++] << 2) & 0xf;
@@ -248,7 +248,7 @@ public:
 		}
 	}
 
-	void compute(const int h, const int w, const int ic, const int oc, const T wi[], int thr[],
+	void compute(const int h, const int w, const int ic, const int oc, const T wi[], const int thr[],
 		const T inb[], T outb[])
 	{
 		int oh = h - KN + 1;
@@ -296,17 +296,17 @@ void kernel(
 #pragma HLS array_partition variable=in cyclic factor=WIDTH
 #pragma HLS array_partition variable=out cyclic factor=OCHANNEL
 
-	static int_t<4,1> even_buf[HEIGHT * WIDTH];
+	static int_t<4,16> even_buf[HEIGHT * WIDTH];
 	static int_t<4,16> odd_buf[OHEIGHT * OWIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
-	static int_t<4,1> conv_wi[OCHANNEL * KERNEL * KERNEL];
+	static int_t<4,16> conv_wi[OCHANNEL * KERNEL * KERNEL];
 	static int conv_thr[THRESHOLD];
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
-	Conv2D<28,28,16,5,int_t<4,1>,hls::vector<int_t<4,1>,KERNEL*KERNEL>> conv;
+	Conv2D<28,28,16,5,int_t<4,16>,hls::vector<int_t<4,16>,KERNEL*KERNEL>> conv;
 
 	read_input<28,28>(in, even_buf);
 	conv.read(28, 28, 1, weight, threshold, conv_wi, conv_thr);
