@@ -263,7 +263,7 @@ public:
 };
 
 template <int H, int W>
-void read_input(const int in[H * W], int_t<4,1> inb[H * W]) {
+void read_input(const int in[H * W], int_t<4,16> inb[H * W]) {
 
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
@@ -273,7 +273,7 @@ void read_input(const int in[H * W], int_t<4,1> inb[H * W]) {
 }
 
 template <int H, int W, int C>
-void write_result(int out[H * W * C], const int_t<4,C> outb[H * W]) {
+void write_result(int out[H * W * C], const int_t<4,16> outb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS pipeline
