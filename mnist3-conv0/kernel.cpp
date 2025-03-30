@@ -268,7 +268,7 @@ void read_input(const int in[H * W], int_t<4,16> inb[H * W]) {
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
 		int_t<4,16> val;
-		val[0] = (in[xy] << 2);
+		val[0] = in[xy];
 		inb[xy] = val;
 	}
 }

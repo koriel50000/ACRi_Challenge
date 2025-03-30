@@ -3,7 +3,7 @@
 #include <ap_int.h>
 #include <hls_vector.h>
 #include <assert.h>
-#include <multimediaIps/xf_video_mem.hpp>
+//#include <multimediaIps/xf_video_mem.hpp>
 
 const int WIDTH = 28;
 const int HEIGHT = 28;
@@ -68,10 +68,10 @@ public:
 	}
 };
 
-typedef xf::cv::LineBuffer<KERNEL - 1, WIDTH, int2_t> linebuf_t;
-typedef xf::cv::Window<KERNEL, KERNEL, int2_t> window_t;
-//typedef LineBuffer<KERNEL - 1, WIDTH, int2_t> linebuf_t;
-//typedef Window<KERNEL, KERNEL, int2_t> window_t;
+//typedef xf::cv::LineBuffer<KERNEL - 1, WIDTH, int2_t> linebuf_t;
+//typedef xf::cv::Window<KERNEL, KERNEL, int2_t> window_t;
+typedef LineBuffer<KERNEL - 1, WIDTH, int2_t> linebuf_t;
+typedef Window<KERNEL, KERNEL, int2_t> window_t;
 
 void insert_linebuf(linebuf_t& linebuf, const int x, const int2_t v) {
 	linebuf.shift_pixels_up(x);
