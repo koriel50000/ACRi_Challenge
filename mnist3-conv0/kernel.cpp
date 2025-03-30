@@ -254,7 +254,7 @@ public:
 		int oh = h - KN + 1;
 		int ow = w - KN + 1;
 
-		fifo<T> pips("pipe_fifo");
+		fifo<WT> pips("pipe_fifo");
 
 #pragma HLS dataflow
 		windowize(h, w, inb, pips);
