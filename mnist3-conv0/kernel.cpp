@@ -1,3 +1,11 @@
+/*
+ * 4bit量子化および演算回路再利用の検証
+ * ・weightを1bit符号＋3bit指数部の4bitで表現(0,0.125,0.25,0.5,1,2,4,8,NA,-0.125,-0.25,-0.5,-1,-2,-4,-8)
+ * ・バッチ正規化後のactivationを1bit符号＋3bit仮数部の4bitで表現(0,1,2,3,4,5,6,7,NA,-1,-2,-3,-4,-5,-6,-7)
+ * ・乗算は符号なし3bitの掛け算を、6入力LUTが6個のテーブル参照で計算
+ * ・演算回路は最大サイズのConv,Maxpoolを用意し、引数で行列サイズを指定して再利用
+ * ・ダブルバッファリングで演算結果を一時保存
+ */
 #include "kernel.hpp"
 #include <ap_int.h>
 #include <hls_stream.h>
@@ -7,21 +15,14 @@
 const int WIDTH = 28;
 const int HEIGHT = 28;
 
-const int FILTER = 16;
 const int KERNEL = 5;
 const int THRESHOLD = 3;
 
 const int OWIDTH = WIDTH - KERNEL + 1;
-const int OHEIGHT = HEIGHT - KERNEL + 1;
+const int OHEIGHT = WIDTH - KERNEL + 1;
+const int OCHANNEL = 16;
 
-const ap_uint<1> b0w1 = 0;
-
-using bit_t = ap_uint<1>;
-using int2_t = ap_int<2>;
-using uint2_t = ap_uint<2>;
-using int3_t = ap_int<3>;
-using uint3_t = ap_uint<3>;
-using int4_t = ap_int<4>;
+using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 
 template <int W, int N>
@@ -50,62 +51,42 @@ public:
 template <typename T>
 using fifo = hls::stream<T>;
 
-void mac63(uint6_t i, int3_t& o) {
-	static const int3_t table[] = {
-		0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0,
-		0, -1, 0, -1, 1, 0, 1, 0,
-		0, -1, 0, -1, 1, 0, 1, 0,
-		0, 0, -1, -1, 0, 0, -1, -1,
-		1, 1, 0, 0, 1, 1, 0, 0,
-		0, -1, -1, -2, 1, 0, 0, -1,
-		1, 0, 0, -1, 2, 1, 1, 0,
+uint6_t mul66(const uint6_t i) {
+	static const uint6_t table[] = {
+		0,	0,	0,	0,	0,	0,	0,	0,
+		0,	0,	0,	1,	1,	2,	4,	8,
+		0,	0,	1,	1,	2,	4,	8,	16,
+		0,	0,	1,	2,	3,	6,	12,	24,
+		0,	1,	1,	2,	4,	8,	16,	32,
+		0,	1,	1,	3,	5,	10,	20,	40,
+		0,	1,	2,	3,	6,	12,	24,	48,
+		0,	1,	2,	4,	7,	14,	28,	56,
 	};
-	o = table[i];
+	return table[i];
 }
 
-void ac64(uint6_t i, int4_t& o) {
-	static const int4_t table[] = {
-		0, 1, 2, 3, -4, -3, -2, -1,
-		1, 2, 3, 4, -3, -2, -1, 0,
-		2, 3, 4, 5, -2, -1, 0, 1,
-		3, 4, 5, 6, -1, 0, 1, 2,
-		-4, -3, -2, -1, -8, -7, -6, -5,
-		-3, -2, -1, 0, -7, -6, -5, -4,
-		-2, -1, 0, 1, -6, -5, -4, -3,
-		-1, 0, 1, 2, -5, -4, -3, -2,
-	};
-	o = table[i];
+int8_t mul(const uint4_t v, const uint4_t w) {
+	uint6_t oval = mul66((v(2, 0), w(2, 0)));
+	return (v[3] ^ w[3]) == 1 ? (-oval).to_int() : oval.to_int();
 }
 
-int16_t muladd25(int_t<1,25> vu, int_t<1,25> wp, int_t<1,25> wn) {
-	int3_t c0100, c0302, c0504, c0706, c0908, c1110, c1312, c1514;
-	int3_t c1716, c1918, c2120, c2322, c24;
+template <int N>
+int16_t muladd(const int n, const int_t<4,N> vu, const int_t<4,N> wi) {
+	static int16_t t[N];
+#pragma HLS array_partition variable=t
 
-	mac63((vu[ 1], vu[ 0], wp[ 1], wp[ 0], wn[ 1], wn[ 0]), c0100);
-	mac63((vu[ 3], vu[ 2], wp[ 3], wp[ 2], wn[ 3], wn[ 2]), c0302);
-	mac63((vu[ 5], vu[ 4], wp[ 5], wp[ 4], wn[ 5], wn[ 4]), c0504);
-	mac63((vu[ 7], vu[ 6], wp[ 7], wp[ 6], wn[ 7], wn[ 6]), c0706);
-	mac63((vu[ 9], vu[ 8], wp[ 9], wp[ 8], wn[ 9], wn[ 8]), c0908);
-	mac63((vu[11], vu[10], wp[11], wp[10], wn[11], wn[10]), c1110);
-	mac63((vu[13], vu[12], wp[13], wp[12], wn[13], wn[12]), c1312);
-	mac63((vu[15], vu[14], wp[15], wp[14], wn[15], wn[14]), c1514);
-	mac63((vu[17], vu[16], wp[17], wp[16], wn[17], wn[16]), c1716);
-	mac63((vu[19], vu[18], wp[19], wp[18], wn[19], wn[18]), c1918);
-	mac63((vu[21], vu[20], wp[21], wp[20], wn[21], wn[20]), c2120);
-	mac63((vu[23], vu[22], wp[23], wp[22], wn[23], wn[22]), c2322);
-	mac63((b0w1, vu[24], b0w1, wp[24], b0w1, wn[24]), c24);
+	for (int i = 0; i < n; i++) {
+//#pragma HLS unroll
+		t[i] = mul(vu[i], wi[i]);
+	}
 
-	int4_t c0, c1, c2, c3, c4, c5;
-
-	ac64((c0100, c0302), c0);
-	ac64((c0504, c0706), c1);
-	ac64((c0908, c1110), c2);
-	ac64((c1312, c1514), c3);
-	ac64((c1716, c1918), c4);
-	ac64((c2120, c2322), c5);
-
-	return ((c0 + c1) + (c2 + c3)) + ((c4 + c5) + c24);
+	for (int d = 1; d < n; d *= 2) {
+		for (int i = 0; i < n; i += d * 2) {
+//#pragma HLS unroll
+			t[i] += t[i + d];
+		}
+	}
+	return t[0];
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
@@ -185,29 +166,30 @@ public:
 	}
 };
 
-template <int H, int W, int KN, typename IT, typename OT, int PD = 0, int ST = 1>
-class WindowBuffer {
+template <int H, int W, int C, int KN, typename T, typename WT, int PD = 0, int ST = 1>
+class Conv2D {
 private:
 	LineBuffer<W + PD, KN, IT, OT> linebuf_;
-	IT v0_;
-public:
-	WindowBuffer(IT v0 = 0) : v0_(v0) {}
+	T v0_;
 
-	void pass_through(fifo<IT>& ins, fifo<OT>& outs) {
+	Conv2D(T v0 = 0) : v0_(v0) {}
+	
+	void windowize(const int h, const int w, T inb[], fifo<WT>& pips) {
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
-		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
+		int ptr = 0;
+		for (int i = 0; i < (w + PD) * (h + PD * 2) + PD; i++) {
 #pragma HLS pipeline
-			IT val;
-			if (0 - (KN - 1) + PD <= x && x < W - (KN - 1) + PD
-				&& 0 - (KN - 1) + PD <= y && y < H - (KN - 1) + PD)
+			T val;
+			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
+				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
 			{
-				val = ins.read();
+				val = inb[ptr++];
 			}
 			else {
 				val = v0_;
 			}
-			if (i < (W + PD) * (KN - 1) - PD) {
+			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
 			}
 			else {
@@ -215,107 +197,118 @@ public:
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
 				OT oval = linebuf_.get_window();
-				outs.write(oval);
+				pips.write(oval);
 			}
 			x++;
-			if (x >= W - (KN - 1) + PD * 2) {
+			if (x >= w - (KN - 1) + PD * 2) {
 				x = 0 - (KN - 1) + PD;
 				y++;
 			}
 		}
 	}
-};
 
-template <typename WT, int H, int W, int C, int KN, int F, int M>
-class Conv2D {
-private:
-	static const int OH = H - KN + 1;
-	static const int OW = W - KN + 1;
-public:
-	template <typename OT>
-	void compute(fifo<WT>& ins, fifo<OT>& outs) {
-		static WT fp[F] = {
-0x01bc800, 0x0008463, 0x0002598, 0x0462300,
-0x0d3b800, 0x011a000, 0x0004189, 0x1a48000,
-0x1001465, 0x00a6508, 0x10a4010, 0x0006502,
-0x00000ac, 0x0081095, 0x0310421, 0x1a08000,
-		};
-		static WT fn[F] = {
-0x000019e, 0x1ce7310, 0x0808001, 0x0018422,
-0x0004050, 0x0000000, 0x1e30000, 0x0001c48,
-0x0128000, 0x1000000, 0x0208002, 0x0100000,
-0x0f68000, 0x1f18000, 0x00c6100, 0x000436b,
-		};
-		static int thr[] = { 1, 3, 4 };
-#pragma HLS array_partition variable=fp
-#pragma HLS array_partition variable=fn
-#pragma HLS array_partition variable=thr
-
-		for (int xy = 0; xy < OH * OW; xy++) {
+	void conv(const int oh, const int ow, const int oc, const T wi[], const int thr[],
+		T outb[], fifo<WT>& pips)
+	{
+		for (int xy = 0; xy < oh * ow; xy++) {
 #pragma HLS pipeline
-			WT val = ins.read();
-			OT oval;
-			for (int z = 0; z < F; z++) {
-				int16_t acc = muladd25(val, fp[z], fn[z]);
-				uint2_t m = 0;
-				for (int n = 0; n < M; n++) {
+			WT val = pips.read();
+			T oval;
+			for (int z = 0; z < oc; z++) {
+				int16_t acc = 0;
+				for (int k = 0; k < KN * KN; k++) {
+					acc += muladd(1, val[k], wi[z * KN * KN + k]);
+				}
+				uint4_t m = 0;
+				for (int n = 0; n < 3; n++) {
 					if (acc >= thr[n]) {
 						m = n + 1;
 					}
 				}
 				oval[z] = m;
 			}
-			outs.write(oval);
+			outb[xy] = oval;
 		}
+	}
+public:
+	void read(const int ic, const int oc, const int kn, const int weight[], const int threshold[],
+		T wi[], int thr[])
+	{
+		for (int j = 0; j < oc * kn * kn; k++) {
+			T val;
+			for (int i = 0; i < ic; i++) {
+				val[i] = (weight[ptr++] << 2) & 0xf;
+			}
+			wi[j] = val;
+		}
+
+		for (int i = 0; i < THRESHOLD; i++) {
+			thr[i] = threshold[i];
+		}
+	}
+
+	void compute(const int h, const int w, const int ic, const int oc, const T wi[], int thr[],
+		const T inb[], T outb[])
+	{
+		int oh = h - KN + 1;
+		int ow = w - KN + 1;
+
+		fifo<T> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		windowize(h, w, inb, pips);
+		conv(oh, ow, oc, wi, thr, outb, pips);
 	}
 };
 
-using Buffer0 = WindowBuffer<28, 28, 5, bit_t, int_t<1,25>>;
-using Conv0 = Conv2D<int_t<1,25>, 28, 28, 1, 5, 16, 3>;
-
-template <int H, int W, typename T>
-void read_input(const int in[H * W], fifo<T>& ins) {
+template <int H, int W>
+void read_input(const int in[H * W], int_t<4,1> inb[H * W]) {
 
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
-		T val = in[xy];
-		ins.write(val);
+		int_t<4,1> val = (in[xy] << 2);
+		inb[xy] = val;
 	}
 }
 
-template <int H, int W, int F>
-void write_result(int out[H * W * F], fifo<int_t<2,16>>& outs) {
+template <int H, int W, int C>
+void write_result(int out[H * W * C], const int_t<4,C> outb[H * W]) {
+	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS pipeline
-		int_t<2,16> val = outs.read();
-		for (int z = 0; z < F; z++) {
+		int_t<4,C> val = outb[xy];
+		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			out[xy * F + z] = val[z];
+			out[ptr++] = val[z];
 		}
 	}
 }
 
 void kernel(
 	int in[HEIGHT * WIDTH],
-	int weight[FILTER * KERNEL * KERNEL],
+	int weight[OCHANNEL * KERNEL * KERNEL],
 	int threshold[THRESHOLD],
-	int out[OHEIGHT * OWIDTH * FILTER])
+	int out[OHEIGHT * OWIDTH * OCHANNEL])
 {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=WIDTH
-#pragma HLS array_partition variable=out cyclic factor=FILTER
+#pragma HLS array_partition variable=out cyclic factor=OCHANNEL
 
-	fifo<bit_t> ins("input_fifo");
-	fifo<int_t<1,25>> pips1("pipe_fifo1");
-	fifo<int_t<2,16>> outs("output_fifo");
+	static int_t<4,1> even_buf[HEIGHT * WIDTH];
+	static int_t<4,16> odd_buf[OHEIGHT * OWIDTH];
+#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
-	Buffer0 buffer0;
-	Conv0 conv0;
+	static int_t<4,1> conv_wi[OCHANNEL * KERNEL * KERNEL];
+	static int conv_thr[THRESHOLD];
+#pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=conv_thr
 
-#pragma HLS dataflow
-	read_input<28, 28, bit_t>(in, ins);
-	buffer0.pass_through(ins, pips1);
-	conv0.compute<int_t<2,16>>(pips1, outs);
-	write_result<24, 24, 16>(out, outs);
+	Conv2D<28,28,16,5,int_t<4,1>,hls::vector<int_t<4,1>,KERNEL*KERNEL>> conv;
+
+	read_input<28,28>(in, even_buf);
+	conv.read(28, 28, 1, weight, threshold, conv_wi, conv_thr);
+	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
+	write_result<24,24,16>(out, odd_buf);
 }
