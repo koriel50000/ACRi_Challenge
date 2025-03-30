@@ -172,7 +172,7 @@ private:
 	LineBuffer<W + PD, KN, T, WT> linebuf_;
 	T v0_;
 
-	void windowize(const int h, const int w, T inb[], fifo<WT>& pips) {
+	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		int ptr = 0;
