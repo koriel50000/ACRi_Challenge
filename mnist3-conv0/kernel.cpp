@@ -169,11 +169,9 @@ public:
 template <int H, int W, int C, int KN, typename T, typename WT, int PD = 0, int ST = 1>
 class Conv2D {
 private:
-	LineBuffer<W + PD, KN, IT, OT> linebuf_;
+	LineBuffer<W + PD, KN, T, WT> linebuf_;
 	T v0_;
 
-	Conv2D(T v0 = 0) : v0_(v0) {}
-	
 	void windowize(const int h, const int w, T inb[], fifo<WT>& pips) {
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
@@ -196,7 +194,7 @@ private:
 				linebuf_.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
-				OT oval = linebuf_.get_window();
+				WT oval = linebuf_.get_window();
 				pips.write(oval);
 			}
 			x++;
@@ -231,9 +229,12 @@ private:
 		}
 	}
 public:
+	Conv2D(T v0 = 0) : v0_(v0) {}
+	
 	void read(const int ic, const int oc, const int kn, const int weight[], const int threshold[],
 		T wi[], int thr[])
 	{
+		int ptr = 0;
 		for (int j = 0; j < oc * kn * kn; k++) {
 			T val;
 			for (int i = 0; i < ic; i++) {
