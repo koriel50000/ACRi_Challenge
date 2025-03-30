@@ -307,7 +307,7 @@ void kernel(
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
-	Conv2D<28,28,16,5,int_t<4,16>,hls::vector<int_t<4,16>,KERNEL*KERNEL>> conv;
+	Conv2D<28,28,16,5,int_t<4,16>,hls::vector<int_t<4,16>,25>> conv;
 
 	read_input<28,28>(in, even_buf);
 	conv.read(28, 28, 1, weight, threshold, conv_wi, conv_thr);
