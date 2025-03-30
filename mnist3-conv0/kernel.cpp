@@ -119,7 +119,7 @@ public:
 template <int W, int KN, typename T, typename WT>
 class LineBuffer {
 private:
-	hls::vector<T, W * (KN - 1)> buf_;
+	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 
 	void shift_pixels_up() {
