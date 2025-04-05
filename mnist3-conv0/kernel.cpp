@@ -21,7 +21,7 @@ const int KERNEL = 5;
 const int THRESHOLD = 3;
 
 const int OWIDTH = WIDTH - KERNEL + 1;
-const int OHEIGHT = WIDTH - KERNEL + 1;
+const int OHEIGHT = HEIGHT - KERNEL + 1;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;

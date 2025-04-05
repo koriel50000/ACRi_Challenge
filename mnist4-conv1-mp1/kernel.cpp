@@ -20,8 +20,8 @@ const int FILTER = 16;
 const int KERNEL = 5;
 const int THRESHOLD = 3;
 
-const int OWIDTH = 4;
-const int OHEIGHT = 4;
+const int OWIDTH = WIDTH - KERNEL + 1;
+const int OHEIGHT = HEIGHT - KERNEL + 1;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
@@ -343,7 +343,7 @@ void write_result(int out[H * W * C], const int_t<4,16> outb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS pipeline
-		int_t<4,C> val = outb[xy];
+		int_t<4,16> val = outb[xy];
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			out[ptr++] = val[z];
@@ -363,9 +363,9 @@ void kernel(
 #pragma HLS array_partition variable=out cyclic factor=FILTER
 
 	static int_t<4,16> even_buf[HEIGHT * WIDTH];
-	static int_t<4,16> odd_buf[HEIGHT * WIDTH];
+	static int_t<4,16> odd_buf[OHEIGHT * OWIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
 	static int_t<4,16> conv_wi[FILTER * KERNEL * KERNEL];
 	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
@@ -373,11 +373,9 @@ void kernel(
 #pragma HLS array_partition variable=conv_thr
 
 	Conv2D<12,12,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
-	MaxPool2x2<int_t<4,16>,8,8,16> maxpool;
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 16, 5, weight, threshold, conv_wi, conv_thr);
 	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
-	maxpool.compute(8, 8, odd_buf, even_buf);
-	write_result<4,4,16>(out, even_buf);
+	write_result<8,8,16>(out, even_buf);
 }
