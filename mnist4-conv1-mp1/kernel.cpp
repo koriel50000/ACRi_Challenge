@@ -193,7 +193,7 @@ public:
 		}
 
 		printf("read wi[]\n");
-		int ptr = 0;
+		ptr = 0;
 		for (int y = 0; y < f; y++) {
 			for (int x = 0; x < kn * kn; x++) {
 				printf("[ ");
@@ -237,7 +237,7 @@ public:
 		conv(h, w, c, f, wi, thr, outb, pips);
 
 		printf("compute outb[]\n");
-		int ptr = 0;
+		ptr = 0;
 		for (int y = 0; y < h - KN + 1; y++) {
 			for (int x = 0; x < w - KN + 1; x++) {
 				printf("[ ");
@@ -292,7 +292,7 @@ void write_result(int out[H * W * C], const int_t<16> outb[H * W]) {
 	}
 
 	printf("write_result\n");
-	int ptr = 0;
+	ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
 			printf("[ ");
