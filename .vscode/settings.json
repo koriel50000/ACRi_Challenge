@@ -7,6 +7,8 @@
         "xutility": "cpp",
         "istream": "cpp",
         "charconv": "cpp",
-        "xmemory": "cpp"
+        "xmemory": "cpp",
+        "vector": "cpp",
+        "random": "cpp"
     }
 }

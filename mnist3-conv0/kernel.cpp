@@ -89,6 +89,23 @@ int16_t muladd(const int n, const int_t<4,N> vu, const int_t<4,N> wi) {
 	return t[0];
 }
 
+uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
+	static uint4_t indexTable[] = {
+		0, 1, 2, 4, 7, 3, 6, 5,
+	};
+#pragma HLS array_partition variable=indexTable
+	
+	ap_uint<1> b0 = acc >= thr[0];
+	ap_uint<1> b1 = acc >= thr[1];
+	ap_uint<1> b2 = acc >= thr[2];
+	ap_uint<1> b3 = acc >= thr[3];
+	ap_uint<1> b4 = acc >= thr[4];
+	ap_uint<1> b5 = acc >= thr[5];
+	ap_uint<1> b6 = acc >= thr[6];
+	ap_uint<8> bits = (0, b6, b5, b4, b3, b2, b1, b0);
+	return indexTable[((bits + 1) * 0x17)(7, 5)];
+}
+
 template <int ROWS, int COLS, typename T, typename WT>
 class Window {
 private:
@@ -217,13 +234,7 @@ private:
 				for (int k = 0; k < KN * KN; k++) {
 					acc += muladd(1, val[k], wi[z * KN * KN + k]);
 				}
-				uint4_t m = 0;
-				for (int n = 0; n < 3; n++) {
-					if (acc >= thr[n]) {
-						m = n + 1;
-					}
-				}
-				oval[z] = m;
+				oval[z] = batch_norm(acc, thr, true);
 			}
 			outb[xy] = oval;
 		}
@@ -245,6 +256,9 @@ public:
 
 		for (int i = 0; i < THRESHOLD; i++) {
 			thr[i] = threshold[i];
+		}
+		for (int i = THRESHOLD; i < 7; i++) {
+			thr[i] = 0x7fff;
 		}
 	}
 
@@ -303,7 +317,7 @@ void kernel(
 #pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
 	static int_t<4,16> conv_wi[OCHANNEL * KERNEL * KERNEL];
-	static int conv_thr[THRESHOLD];
+	static int conv_thr[7];
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
