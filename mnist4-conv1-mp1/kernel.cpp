@@ -23,8 +23,6 @@ const int THRESHOLD = 3;
 const int OWIDTH = WIDTH - KERNEL + 1;
 const int OHEIGHT = HEIGHT - KERNEL + 1;
 
-using uint4_t = ap_uint<4>;
-using uint6_t = ap_uint<6>;
 template <typename T>
 using win_t = hls::vector<T, KERNEL * KERNEL>;
 
@@ -160,8 +158,8 @@ private:
 			for (int z = 0; z < f; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
-					for (int i = 0; i < 16; i++) {
-						acc += val[k][i] * wi[z * KN * KN + k][i];
+					for (int i = 0; i < c; i++) {
+						acc += val[k][i] * wi[i * KN * KN + k][z];
 					}
 				}
 				int m = 0;
