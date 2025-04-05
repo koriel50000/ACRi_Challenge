@@ -332,7 +332,7 @@ void read_input(const int in[H * W * C], int_t<4,16> inb[H * W]) {
 #pragma HLS unroll factor=W skip_exit_check
 		int_t<4,16> val;
 		for (int z = 0; z < C; z++) {
-			val[0] = in[xy];
+			val[z] = in[xy];
 		}
 		inb[xy] = val;
 	}
@@ -373,11 +373,11 @@ void kernel(
 #pragma HLS array_partition variable=conv_thr
 
 	Conv2D<12,12,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
-	MaxPool2x2<int_t<4,16>,HEIGHT,WIDTH,CHANNEL> maxpool;
+	MaxPool2x2<int_t<4,16>,8,8,16> maxpool;
 
 	read_input<12,12,16>(in, even_buf);
-	conv.read(CHANNEL, FILTER, KERNEL, weight, threshold, conv_wi, conv_thr);
-	conv.compute(HEIGHT, WIDTH, CHANNEL, FILTER, conv_wi, conv_thr, even_buf, odd_buf);
-	maxpool.compute(HEIGHT, WIDTH, odd_buf, even_buf);
-	write_result<OHEIGHT,OWIDTH,CHANNEL>(out, even_buf);
+	conv.read(16, 1, 5, weight, threshold, conv_wi, conv_thr);
+	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
+	maxpool.compute(8, 8, odd_buf, even_buf);
+	write_result<4,4,16>(out, even_buf);
 }
