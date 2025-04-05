@@ -159,7 +159,7 @@ private:
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
 					for (int i = 0; i < c; i++) {
-						acc += val[k][i] * wi[i * KN * KN + k][z];
+						acc += val[k][i] * wi[z * KN * KN + k][i];
 					}
 				}
 				int m = 0;
@@ -191,6 +191,26 @@ public:
 		for (int i = 0; i < THRESHOLD; i++) {
 			thr[i] = threshold[i];
 		}
+
+		printf("read wi[]\n");
+		int ptr = 0;
+		for (int y = 0; y < f; y++) {
+			for (int x = 0; x < kn * kn; x++) {
+				printf("[ ");
+				for (int z = 0; z < c; z++) {
+					printf("%d ", wi[ptr++][z]);
+				}
+				printf("] ");
+			}
+			printf("\n");
+		}
+		printf("\n");
+
+		printf("read thr[]\n");
+		for (int i = 0; i < THRESHOLD; i++) {
+			printf(" %d", thr[i]);
+		}
+		printf("\n");
 	}
 
 	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
@@ -198,9 +218,37 @@ public:
 	{
 		fifo<WT> pips("pipe_fifo");
 
+		printf("compute inb[]\n");
+		int ptr = 0;
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				printf("[ ");
+				for (int z = 0; z < c; z++) {
+					printf("%d ", outb[ptr++][z]);
+				}
+				printf("] ");
+			}
+			printf("\n");
+		}
+		printf("\n");
+	
 #pragma HLS dataflow
 		windowize(h, w, inb, pips);
 		conv(h, w, c, f, wi, thr, outb, pips);
+
+		printf("compute outb[]\n");
+		int ptr = 0;
+		for (int y = 0; y < h - KN + 1; y++) {
+			for (int x = 0; x < w - KN + 1; x++) {
+				printf("[ ");
+				for (int z = 0; z < f; z++) {
+					printf("%d ", outb[ptr++][z]);
+				}
+				printf("] ");
+			}
+			printf("\n");
+		}
+		printf("\n");	
 	}
 };
 
@@ -215,6 +263,20 @@ void read_input(const int in[H * W * C], int_t<16> inb[H * W]) {
 		}
 		inb[xy] = val;
 	}
+
+	printf("read_input\n");
+	int ptr = 0;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			printf("[ ");
+			for (int z = 0; z < C; z++) {
+				printf("%d ", inb[ptr++][z]);
+			}
+			printf("] ");
+		}
+		printf("\n");
+	}
+	printf("\n");
 }
 
 template <int H, int W, int C>
@@ -228,6 +290,20 @@ void write_result(int out[H * W * C], const int_t<16> outb[H * W]) {
 			out[ptr++] = val[z];
 		}
 	}
+
+	printf("write_result\n");
+	int ptr = 0;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			printf("[ ");
+			for (int z = 0; z < C; z++) {
+				printf("%d ", outb[ptr++][z]);
+			}
+			printf("] ");
+		}
+		printf("\n");
+	}
+	printf("\n");
 }
 
 void kernel(
