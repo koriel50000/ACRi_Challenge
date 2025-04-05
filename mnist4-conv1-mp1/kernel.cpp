@@ -378,11 +378,11 @@ void kernel(
 	int w[] = { 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, };
 	int_t<4,16> vu;
 	int_t<4,16> wi;
-	int expected = 0;
+	int16_t expected = 0;
 	for (int i = 0; i < 16; i++) {
-		expected += v * w;
-		vu[i] = v;
-		wi[i] = (w << 2) & 0xf;
+		expected += v[i] * w[i];
+		vu[i] = v[i];
+		wi[i] = (w[i] << 2) & 0xf;
 	}
 	int16_t actual = muladd<16>(16, vu, wi);
 	printf("expected=%d actual=%d\n", expected, actual);
