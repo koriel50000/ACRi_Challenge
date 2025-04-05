@@ -27,7 +27,7 @@ template <typename T>
 using win_t = hls::vector<T, KERNEL * KERNEL>;
 
 template <int N>
-using int_t = hls::vector<int, N>;
+using int_t = int[N];
 
 template <typename T>
 using fifo = hls::stream<T>;
@@ -113,7 +113,7 @@ template <int H, int W, int C, int KN, typename T, typename WT, int PD = 0, int 
 class Conv2D {
 private:
 	LineBuffer<W + PD, KN, T, WT> linebuf_;
-	T v0_;
+	//T v0_;
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		int x = 0 - (KN - 1);
@@ -128,7 +128,7 @@ private:
 				val = inb[ptr++];
 			}
 			else {
-				val = v0_;
+				val = {};
 			}
 			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
@@ -174,7 +174,7 @@ private:
 		}
 	}
 public:
-	Conv2D(T v0 = 0) : v0_(v0) {}
+	//Conv2D(T v0 = 0) : v0_(v0) {}
 	
 	void read(const int f, const int kn, const int c, const int weight[], const int threshold[],
 		T wi[], int thr[])
