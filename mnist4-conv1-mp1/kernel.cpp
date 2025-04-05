@@ -374,19 +374,6 @@ void kernel(
 
 	Conv2D<12,12,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
 
-	int v[] = { 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, };
-	int w[] = { 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, };
-	int_t<4,16> vu;
-	int_t<4,16> wi;
-	int16_t expected = 0;
-	for (int i = 0; i < 16; i++) {
-		expected += v[i] * w[i];
-		vu[i] = v[i];
-		wi[i] = (w[i] << 2) & 0xf;
-	}
-	int16_t actual = muladd<16>(16, vu, wi);
-	printf("expected=%d actual=%d\n", expected, actual);
-
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 5, 16, weight, threshold, conv_wi, conv_thr);
 	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
