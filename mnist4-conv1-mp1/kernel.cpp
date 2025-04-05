@@ -325,13 +325,15 @@ public:
 	}
 };
 
-template <int H, int W>
-void read_input(const int in[H * W], int_t<4,16> inb[H * W]) {
+template <int H, int W, int C>
+void read_input(const int in[H * W * C], int_t<4,16> inb[H * W]) {
 
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
 		int_t<4,16> val;
-		val[0] = in[xy];
+		for (int z = 0; z < C; z++) {
+			val[0] = in[xy];
+		}
 		inb[xy] = val;
 	}
 }
@@ -371,7 +373,7 @@ void kernel(
 #pragma HLS array_partition variable=conv_thr
 
 	Conv2D<12,12,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
-	MaxPool2x2<int_t<4,CHANNEL>,MAX_HEIGHT,MAX_WIDTH,CHANNEL> maxpool;
+	MaxPool2x2<int_t<4,16>,HEIGHT,WIDTH,CHANNEL> maxpool;
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(CHANNEL, FILTER, KERNEL, weight, threshold, conv_wi, conv_thr);
