@@ -27,7 +27,7 @@ template <typename T>
 using win_t = hls::vector<T, KERNEL * KERNEL>;
 
 template <int N>
-using int_t = int[N];
+using int_t = hls::vector<int, N>;
 
 template <typename T>
 using fifo = hls::stream<T>;
