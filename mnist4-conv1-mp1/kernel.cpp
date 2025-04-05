@@ -245,7 +245,7 @@ private:
 public:
 	Conv2D(T v0 = 0) : v0_(v0) {}
 	
-	void read(const int c, const int f, const int kn, const int weight[], const int threshold[],
+	void read(const int f, const int kn, const int c, const int weight[], const int threshold[],
 		T wi[], int thr[])
 	{
 		int ptr = 0;
@@ -388,7 +388,7 @@ void kernel(
 	printf("expected=%d actual=%d\n", expected, actual);
 
 	read_input<12,12,16>(in, even_buf);
-	conv.read(16, 16, 5, weight, threshold, conv_wi, conv_thr);
+	conv.read(16, 5, 16, weight, threshold, conv_wi, conv_thr);
 	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
 	write_result<8,8,16>(out, odd_buf);
 }
