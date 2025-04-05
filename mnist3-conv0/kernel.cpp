@@ -90,7 +90,7 @@ int16_t muladd(const int n, const int_t<4,N> vu, const int_t<4,N> wi) {
 }
 
 uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
-	static uint4_t indexTable[] = {
+	static const uint4_t indexTable[] = {
 		0, 1, 2, 4, 7, 3, 6, 5,
 	};
 #pragma HLS array_partition variable=indexTable
