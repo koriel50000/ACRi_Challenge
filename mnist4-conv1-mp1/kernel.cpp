@@ -377,5 +377,5 @@ void kernel(
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 16, 5, weight, threshold, conv_wi, conv_thr);
 	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
-	write_result<8,8,16>(out, even_buf);
+	write_result<8,8,16>(out, odd_buf);
 }
