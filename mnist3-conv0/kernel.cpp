@@ -14,16 +14,19 @@
 
 const int WIDTH = 28;
 const int HEIGHT = 28;
+const int CHANNEL = 1;
 
+const int FILTER = 16;
 const int KERNEL = 5;
 const int THRESHOLD = 3;
 
 const int OWIDTH = WIDTH - KERNEL + 1;
 const int OHEIGHT = WIDTH - KERNEL + 1;
-const int OCHANNEL = 16;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
+template <typename T>
+using win_t = hls::vector<T, KERNEL * KERNEL>;
 
 template <int W, int N>
 class int_t {
@@ -222,17 +225,17 @@ private:
 		}
 	}
 
-	void conv(const int oh, const int ow, const int oc, const T wi[], const int thr[],
+	void conv(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
 		T outb[], fifo<WT>& pips)
 	{
-		for (int xy = 0; xy < oh * ow; xy++) {
+		for (int xy = 0; xy < (h - KN + 1) * (w - KN + 1); xy++) {
 #pragma HLS pipeline
 			WT val = pips.read();
 			T oval;
-			for (int z = 0; z < oc; z++) {
+			for (int z = 0; z < f; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
-					acc += muladd(1, val[k], wi[z * KN * KN + k]);
+					acc += muladd<C>(c, val[k], wi[z * KN * KN + k]);
 				}
 				oval[z] = batch_norm(acc, thr, true);
 			}
@@ -242,13 +245,13 @@ private:
 public:
 	Conv2D(T v0 = 0) : v0_(v0) {}
 	
-	void read(const int ic, const int oc, const int kn, const int weight[], const int threshold[],
+	void read(const int c, const int f, const int kn, const int weight[], const int threshold[],
 		T wi[], int thr[])
 	{
 		int ptr = 0;
-		for (int j = 0; j < oc * kn * kn; j++) {
+		for (int j = 0; j < f * kn * kn; j++) {
 			T val;
-			for (int i = 0; i < ic; i++) {
+			for (int i = 0; i < c; i++) {
 				val[i] = (weight[ptr++] << 2) & 0xf;
 			}
 			wi[j] = val;
@@ -257,32 +260,28 @@ public:
 		for (int i = 0; i < THRESHOLD; i++) {
 			thr[i] = threshold[i];
 		}
-		for (int i = THRESHOLD; i < 7; i++) {
-			thr[i] = 0x7fff;
-		}
 	}
 
-	void compute(const int h, const int w, const int ic, const int oc, const T wi[], const int thr[],
+	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
 		const T inb[], T outb[])
 	{
-		int oh = h - KN + 1;
-		int ow = w - KN + 1;
-
 		fifo<WT> pips("pipe_fifo");
 
 #pragma HLS dataflow
 		windowize(h, w, inb, pips);
-		conv(oh, ow, oc, wi, thr, outb, pips);
+		conv(h, w, c, f, wi, thr, outb, pips);
 	}
 };
 
-template <int H, int W>
-void read_input(const int in[H * W], int_t<4,16> inb[H * W]) {
+template <int H, int W, int C>
+void read_input(const int in[H * W * C], int_t<4,16> inb[H * W]) {
 
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
 		int_t<4,16> val;
-		val[0] = in[xy];
+		for (int z = 0; z < C; z++) {
+			val[z] = in[xy];
+		}
 		inb[xy] = val;
 	}
 }
@@ -292,7 +291,7 @@ void write_result(int out[H * W * C], const int_t<4,16> outb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS pipeline
-		int_t<4,C> val = outb[xy];
+		int_t<4,16> val = outb[xy];
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			out[ptr++] = val[z];
@@ -301,29 +300,29 @@ void write_result(int out[H * W * C], const int_t<4,16> outb[H * W]) {
 }
 
 void kernel(
-	int in[HEIGHT * WIDTH],
-	int weight[OCHANNEL * KERNEL * KERNEL],
+	int in[HEIGHT * WIDTH * CHANNEL],
+	int weight[FILTER * KERNEL * KERNEL * CHANNEL],
 	int threshold[THRESHOLD],
-	int out[OHEIGHT * OWIDTH * OCHANNEL])
+	int out[OHEIGHT * OWIDTH * FILTER])
 {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=WIDTH
-#pragma HLS array_partition variable=out cyclic factor=OCHANNEL
+#pragma HLS array_partition variable=out cyclic factor=FILTER
 
 	static int_t<4,16> even_buf[HEIGHT * WIDTH];
 	static int_t<4,16> odd_buf[OHEIGHT * OWIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
-	static int_t<4,16> conv_wi[OCHANNEL * KERNEL * KERNEL];
-	static int conv_thr[7];
+	static int_t<4,16> conv_wi[FILTER * KERNEL * KERNEL];
+	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
-	Conv2D<28,28,16,5,int_t<4,16>,hls::vector<int_t<4,16>,25>> conv;
+	Conv2D<28,28,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
 
-	read_input<28,28>(in, even_buf);
+	read_input<28,28,1>(in, even_buf);
 	conv.read(1, 16, 5, weight, threshold, conv_wi, conv_thr);
 	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
 	write_result<24,24,16>(out, odd_buf);
