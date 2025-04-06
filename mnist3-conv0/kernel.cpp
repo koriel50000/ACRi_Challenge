@@ -143,6 +143,7 @@ class LineBuffer { // FIXME
 private:
 	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
+	int width_;
 
 	void shift_pixels_up() {
 #pragma HLS inline
@@ -154,17 +155,19 @@ private:
 
 	void insert_bottom_row(T value) {
 #pragma HLS inline
-		buf_[W * (KN - 1) - 1] = value;
+		buf_[width_ * (KN - 1) - 1] = value;
 	}
 
 	void get_col(T value[KN - 1]) {
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
-			value[i] = buf_[i * W];
+			value[i] = buf_[i * width_];
 		}
 	}
 public:
+	LineBuffer(int w = W) : width_(w) {}
+
 	void insert_linebuf(const T v) {
 		shift_pixels_up();
 		insert_bottom_row(v);
@@ -192,7 +195,7 @@ template <int H, int W, int C, int F, int KN, typename T, typename WT, int PD = 
 class Conv2D {
 private:
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
-		LineBuffer<W + PD, KN, T, WT> linebuf;
+		LineBuffer<W + PD, KN, T, WT> linebuf(w);
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
@@ -230,7 +233,7 @@ private:
 		T outb[], fifo<WT>& pips)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
 				if (x >= w - (KN - 1)) break;
@@ -252,10 +255,12 @@ public:
 	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
 		int ptr = 0;
 		for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
 			if (j >= f) break;
 			for (int k = 0; k < KN * KN; k++) {
 				T val;
 				for (int i = 0; i < C; i++) {
+#pragma HLS unroll
 					if (i >= c) break;
 					val[i] = (weight[ptr++] << 2) & 0xf;
 				}
@@ -264,6 +269,7 @@ public:
 		}
 
 		for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
 			thr[i] = threshold[i];
 		}
 	}
