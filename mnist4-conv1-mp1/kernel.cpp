@@ -126,14 +126,12 @@ private:
 				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
 			{
 				val = inb[ptr++];
-			}
-			else {
+			} else {
 				val = 0;
 			}
 			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
-			}
-			else {
+			} else {
 				linebuf_.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
@@ -154,6 +152,22 @@ private:
 		for (int xy = 0; xy < (h - KN + 1) * (w - KN + 1); xy++) {
 #pragma HLS pipeline
 			WT val = pips.read();
+			if (xy == 0) {
+				printf("conv window[] y=%d x=%d z=%d\n", KN, KN, c);
+				int ptr = 0;
+				for (int y = 0; y < KN; y++) {
+					for (int x = 0; x < KN; x++) {
+						int_t<16> pval = val[ptr++];
+						printf("[ ");
+						for (int z = 0; z < c; z++) {
+							printf("%d ", pval[z]);
+						}
+						printf("] ");
+					}
+					printf("\n");
+				}
+				printf("\n");
+			}
 			T oval;
 			for (int z = 0; z < f; z++) {
 				int16_t acc = 0;
