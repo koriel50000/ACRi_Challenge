@@ -271,18 +271,18 @@ public:
 
 template <int H, int W, int C>
 void read_input(const int in[H * W * C], int_t<16> inb[H * W]) {
-
+	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
 		int_t<16> val;
 		for (int z = 0; z < C; z++) {
-			val[z] = in[xy];
+			val[z] = in[ptr++];
 		}
 		inb[xy] = val;
 	}
 
 	printf("read_input H=%d W=%d C=%d\n", H, W, C);
-	int ptr = 0;
+	ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
 			int_t<16> pval = inb[ptr++];
