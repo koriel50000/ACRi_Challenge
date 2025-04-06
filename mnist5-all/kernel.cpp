@@ -463,7 +463,7 @@ void kernel(
 #pragma HLS array_partition variable=conv1_thr
 
 	static int_t<4,CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=mat_wi
+#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN / CHUNK_SIZE
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
