@@ -23,14 +23,91 @@ const int THRESHOLD = 3;
 const int OWIDTH = WIDTH - KERNEL + 1;
 const int OHEIGHT = HEIGHT - KERNEL + 1;
 
+using uint4_t = ap_uint<4>;
+using uint6_t = ap_uint<6>;
 template <typename T>
 using win_t = hls::vector<T, KERNEL * KERNEL>;
 
-template <int N>
-using int_t = hls::vector<int, N>;
+template <int W, int N>
+class int_t {
+private:
+	ap_uint<W*N> buf_;
+public:
+	int_t() : buf_(0) {}
+	int_t(int i) : buf_(i) {}
+	int_t(unsigned int ui) : buf_(ui) {}
+	int_t(long l) : buf_(l) {}
+	int_t(unsigned long ul) : buf_(ul) {}
+	int_t(const char* s) : buf_(s) {}
+
+	inline ap_range_ref<W*N, false> operator[](size_t index) const {
+		assert(index < N);
+		return buf_(W * index + W - 1, W * index);
+	}
+
+	inline ap_range_ref<W*N, false> operator[](size_t index) {
+		assert(index < N);
+		return buf_(W * index + W - 1, W * index);
+	}
+};
 
 template <typename T>
 using fifo = hls::stream<T>;
+
+uint6_t mul66(const uint6_t i) {
+	static const uint6_t table[] = {
+		0,	0,	0,	0,	0,	0,	0,	0,
+		0,	0,	0,	1,	1,	2,	4,	8,
+		0,	0,	1,	1,	2,	4,	8,	16,
+		0,	0,	1,	2,	3,	6,	12,	24,
+		0,	1,	1,	2,	4,	8,	16,	32,
+		0,	1,	1,	3,	5,	10,	20,	40,
+		0,	1,	2,	3,	6,	12,	24,	48,
+		0,	1,	2,	4,	7,	14,	28,	56,
+	};
+	return table[i];
+}
+
+int8_t mul(const uint4_t v, const uint4_t w) {
+	uint6_t oval = mul66((v(2, 0), w(2, 0)));
+	return (v[3] ^ w[3]) == 1 ? (-oval).to_int() : oval.to_int();
+}
+
+template <int N>
+int16_t muladd(const int n, const int_t<4,N> vu, const int_t<4,N> wi) {
+	static int16_t t[N];
+#pragma HLS array_partition variable=t
+
+	for (int i = 0; i < n; i++) {
+//#pragma HLS unroll
+		t[i] = mul(vu[i], wi[i]);
+	}
+
+	for (int d = 1; d < n; d *= 2) {
+		for (int i = 0; i < n; i += d * 2) {
+//#pragma HLS unroll
+			t[i] += t[i + d];
+		}
+	}
+	return t[0];
+}
+
+uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
+	static const uint4_t indexTable[] = {
+		0, 1, 2, 4, 7, 3, 6, 5,
+	};
+#pragma HLS array_partition variable=indexTable
+	
+	ap_uint<1> b0 = acc >= thr[0];
+	ap_uint<1> b1 = acc >= thr[1];
+	ap_uint<1> b2 = acc >= thr[2];
+	ap_uint<1> b3 = acc >= thr[3];
+	ap_uint<1> b4 = acc >= thr[4];
+	ap_uint<1> b5 = acc >= thr[5];
+	ap_uint<1> b6 = acc >= thr[6];
+	ap_uint<8> bits = (0, b6, b5, b4, b3, b2, b1, b0);
+	return indexTable[((bits + 1) * 0x17)(7, 5)];
+}
 
 template <int ROWS, int COLS, typename T, typename WT>
 class Window {
@@ -113,7 +190,7 @@ template <int H, int W, int C, int KN, typename T, typename WT, int PD = 0, int 
 class Conv2D {
 private:
 	LineBuffer<W + PD, KN, T, WT> linebuf_;
-	//T v0_;
+	T v0_;
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		int x = 0 - (KN - 1);
@@ -126,12 +203,14 @@ private:
 				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
 			{
 				val = inb[ptr++];
-			} else {
-				val = 0;
+			}
+			else {
+				val = v0_;
 			}
 			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
-			} else {
+			}
+			else {
 				linebuf_.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
@@ -152,43 +231,19 @@ private:
 		for (int xy = 0; xy < (h - KN + 1) * (w - KN + 1); xy++) {
 #pragma HLS pipeline
 			WT val = pips.read();
-			if (xy == 0) {
-				printf("conv window[] y=%d x=%d z=%d\n", KN, KN, c);
-				int ptr = 0;
-				for (int y = 0; y < KN; y++) {
-					for (int x = 0; x < KN; x++) {
-						int_t<16> pval = val[ptr++];
-						printf("[ ");
-						for (int z = 0; z < c; z++) {
-							printf("%d ", pval[z]);
-						}
-						printf("] ");
-					}
-					printf("\n");
-				}
-				printf("\n");
-			}
 			T oval;
 			for (int z = 0; z < f; z++) {
 				int16_t acc = 0;
 				for (int k = 0; k < KN * KN; k++) {
-					for (int i = 0; i < c; i++) {
-						acc += val[k][i] * wi[z * KN * KN + k][i];
-					}
+					acc += muladd<C>(c, val[k], wi[z * KN * KN + k]);
 				}
-				int m = 0;
-				for (int n = 0; n < 3; n++) {
-					if (acc >= thr[n]) {
-						m = n + 1;
-					}
-				}
-				oval[z] = m;
+				oval[z] = batch_norm(acc, thr, true);
 			}
 			outb[xy] = oval;
 		}
 	}
 public:
-	//Conv2D(T v0 = 0) : v0_(v0) {}
+	Conv2D(T v0 = 0) : v0_(v0) {}
 	
 	void read(const int f, const int kn, const int c, const int weight[], const int threshold[],
 		T wi[], int thr[])
@@ -197,7 +252,7 @@ public:
 		for (int j = 0; j < f * kn * kn; j++) {
 			T val;
 			for (int i = 0; i < c; i++) {
-				val[i] = weight[ptr++];
+				val[i] = (weight[ptr++] << 2) & 0xf;
 			}
 			wi[j] = val;
 		}
@@ -205,27 +260,6 @@ public:
 		for (int i = 0; i < THRESHOLD; i++) {
 			thr[i] = threshold[i];
 		}
-
-		printf("read wi[] y=%d x=%d z=%d\n", f, kn * kn, c);
-		ptr = 0;
-		for (int y = 0; y < f; y++) {
-			for (int x = 0; x < kn * kn; x++) {
-				int_t<16> pval = wi[ptr++];
-				printf("[ ");
-				for (int z = 0; z < c; z++) {
-					printf("%d ", pval[z]);
-				}
-				printf("] ");
-			}
-			printf("\n");
-		}
-		printf("\n");
-
-		printf("read thr[%d]\n", THRESHOLD);
-		for (int i = 0; i < THRESHOLD; i++) {
-			printf(" %d", thr[i]);
-		}
-		printf("\n");
 	}
 
 	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
@@ -233,96 +267,36 @@ public:
 	{
 		fifo<WT> pips("pipe_fifo");
 
-		printf("compute inb[] y=%d w=%d z=%d\n", h, w, c);
-		int ptr = 0;
-		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < w; x++) {
-				int_t<16> pval = outb[ptr++];
-				printf("[ ");
-				for (int z = 0; z < c; z++) {
-					printf("%d ", pval[z]);
-				}
-				printf("] ");
-			}
-			printf("\n");
-		}
-		printf("\n");
-	
 #pragma HLS dataflow
 		windowize(h, w, inb, pips);
 		conv(h, w, c, f, wi, thr, outb, pips);
-
-		printf("compute outb[] y=%d x=%d z=%d\n", h - KN + 1, w - KN + 1, f);
-		ptr = 0;
-		for (int y = 0; y < h - KN + 1; y++) {
-			for (int x = 0; x < w - KN + 1; x++) {
-				int_t<16> pval = outb[ptr++];
-				printf("[ ");
-				for (int z = 0; z < f; z++) {
-					printf("%d ", pval[z]);
-				}
-				printf("] ");
-			}
-			printf("\n");
-		}
-		printf("\n");	
 	}
 };
 
 template <int H, int W, int C>
-void read_input(const int in[H * W * C], int_t<16> inb[H * W]) {
+void read_input(const int in[H * W * C], int_t<4,16> inb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS unroll factor=W skip_exit_check
-		int_t<16> val;
+		int_t<4,16> val;
 		for (int z = 0; z < C; z++) {
 			val[z] = in[ptr++];
 		}
 		inb[xy] = val;
 	}
-
-	printf("read_input H=%d W=%d C=%d\n", H, W, C);
-	ptr = 0;
-	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
-			int_t<16> pval = inb[ptr++];
-			printf("[ ");
-			for (int z = 0; z < C; z++) {
-				printf("%d ", pval[z]);
-			}
-			printf("] ");
-		}
-		printf("\n");
-	}
-	printf("\n");
 }
 
 template <int H, int W, int C>
-void write_result(int out[H * W * C], const int_t<16> outb[H * W]) {
+void write_result(int out[H * W * C], const int_t<4,16> outb[H * W]) {
 	int ptr = 0;
 	for (int xy = 0; xy < H * W; xy++) {
 #pragma HLS pipeline
-		int_t<16> val = outb[xy];
+		int_t<4,16> val = outb[xy];
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			out[ptr++] = val[z];
 		}
 	}
-
-	printf("write_result H=%d W=%d C=%d\n", H, W, C);
-	ptr = 0;
-	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
-			int_t<16> pval = outb[ptr++];
-			printf("[ ");
-			for (int z = 0; z < C; z++) {
-				printf("%d ", pval[z]);
-			}
-			printf("] ");
-		}
-		printf("\n");
-	}
-	printf("\n");
 }
 
 void kernel(
@@ -336,17 +310,17 @@ void kernel(
 #pragma HLS array_partition variable=in cyclic factor=CHANNEL
 #pragma HLS array_partition variable=out cyclic factor=FILTER
 
-	static int_t<16> even_buf[HEIGHT * WIDTH];
-	static int_t<16> odd_buf[OHEIGHT * OWIDTH];
+	static int_t<4,16> even_buf[HEIGHT * WIDTH];
+	static int_t<4,16> odd_buf[OHEIGHT * OWIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
 
-	static int_t<16> conv_wi[FILTER * KERNEL * KERNEL];
-	static int conv_thr[THRESHOLD];
+	static int_t<4,16> conv_wi[FILTER * KERNEL * KERNEL];
+	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
-	Conv2D<12,12,16,5,int_t<16>,win_t<int_t<16>>> conv;
+	Conv2D<12,12,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 5, 16, weight, threshold, conv_wi, conv_thr);
