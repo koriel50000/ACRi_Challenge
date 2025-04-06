@@ -104,14 +104,15 @@ public:
 template<int H, int W, int C>
 void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	int ptr = 0;
-	for (int xy = 0; xy < H * W; xy++) {
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 		int_t<4,CHANNEL> val;
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			val[z] = in[ptr++];
 		}
-		inb[xy] = val;
+		inb[y * WIDTH + x] = val;
 	}
 }
 
