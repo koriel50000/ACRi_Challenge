@@ -431,11 +431,6 @@ void kernel(
 	int out[10])
 {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=out
-#pragma HLS array_partition variable=in cyclic factor=28
-#pragma HLS array_partition variable=out cyclic factor=10
-
-#pragma HLS interface axis port=in
 #pragma HLS interface axis port=conv0_weight
 #pragma HLS interface axis port=threshold0
 #pragma HLS interface axis port=conv1_weight
