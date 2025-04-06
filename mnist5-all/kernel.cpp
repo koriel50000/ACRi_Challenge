@@ -397,7 +397,7 @@ public:
 	}
 
 	void compute(int out[CL], const IT mat[CL * FL / K], IT inb[]) {
-		fifo<T> pips("pipe_fifo");
+		fifo<OT> pips("pipe_fifo");
 
 #pragma HLS dataflow
 		flatten(mat, inb, pips);
