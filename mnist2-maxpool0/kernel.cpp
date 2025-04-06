@@ -60,8 +60,8 @@ private:
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
 				if (x >= w) break;
-				T val1 = inb[x];
-				T val2 = inb[x + 1];
+				T val1 = inb[y * WIDTH + x];
+				T val2 = inb[y * WIDTH + x + 1];
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -105,8 +105,8 @@ template<int H, int W, int C>
 void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
+		for (int x = 0; x < W; x++) {
 			int_t<4,CHANNEL> val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
