@@ -192,7 +192,7 @@ template <int H, int W, int C, int F, int KN, typename T, typename WT, int PD = 
 class Conv2D {
 private:
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
-		LineBuffer<W + PD, KN, T, WT> linebuf_;
+		LineBuffer<W + PD, KN, T, WT> linebuf;
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
@@ -242,7 +242,7 @@ private:
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
-					oval[z] = batch_norm(acc, thr, true);
+					oval[j] = batch_norm(acc, thr, true);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
