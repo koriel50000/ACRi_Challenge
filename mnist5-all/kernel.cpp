@@ -357,13 +357,15 @@ public:
 
 	void compute(const int_t<4,K> mat[CL * FL / K], const int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
 		int ptr = 0;
-		for (int j = 0; j < FL / K; j++) {
+		for (int y = 0; y < 8; y++) {
+			for (int x = 0; x < 8; x++) {
 #pragma HLS pipeline
-			int_t<4,K> vu = inb[j];
-			for (int i = 0; i < CL; i++) {
-				int_t<4,K> wi = mat[ptr++];
-				int16_t acc = muladd<K>(K, vu, wi);
-				outb[j][i] = acc;
+				int_t<4,K> vu = inb[y * WIDTH + x];
+				for (int i = 0; i < CL; i++) {
+					int_t<4,K> wi = mat[ptr++];
+					int16_t acc = muladd<K>(K, vu, wi);
+					outb[j][i] = acc;
+				}
 			}
 		}
 	}
@@ -441,8 +443,10 @@ void kernel(
 
 	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
 	static int_t<4,CHANNEL> odd_buf[HEIGHT * WIDTH];
+	static int_t<16,CLASS> out_buf[FLATTEN / CHUNK_SIZE];	
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=out_buf cyclic factor=CHUNK_SIZE
 
 	static int_t<4,CHANNEL> conv0_wi[FILTER * KERNEL * KERNEL];
 	static int conv0_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
@@ -474,7 +478,7 @@ void kernel(
 	maxpool.compute(8, 8, 16, odd_buf, even_buf);
 
 	matmul0.read(matmul0_weight, mat_wi);
-	matmul0.compute(mat_wi, even_buf, odd_buf);
+	matmul0.compute(mat_wi, even_buf, out_buf);
 
-	write_result<10,256,16>(out, odd_buf);
+	write_result<10,256,16>(out, out_buf);
 }
