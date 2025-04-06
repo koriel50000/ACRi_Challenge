@@ -338,10 +338,51 @@ public:
 	}
 };
 
-template <int CL, int FL, int K>
+template <int CL, int FL, int K, int H, int W, typename IT, typename OT>
 class Dense {
+private:
+	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<T>& pips) {
+		int ptr = 0;
+		for (int y = 0; y < H; y++) {
+			for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
+				IT vu = inb[y * WIDTH + x];
+				OT oval;
+				for (int i = 0; i < CL; i++) {
+					IT wi = mat[ptr++];
+					int16_t acc = muladd<K>(K, vu, wi);
+					oval[i] = acc;
+				}
+				pips.write(oval);
+			}
+		}
+	}
+
+	void write_result(int out[CL], fifo<OT>& pips) {
+		static int16_t acc[CL];
+#pragma HLS array_partition variable=acc
+	
+		for (int i = 0; i < CL; i++) {
+#pragma HLS unroll
+			acc[i] = 0;
+		}
+	
+		for (int j = 0; j < FL / K; j++) {
+#pragma HLS pipeline
+			OT val = pips.read();
+			for (int i = 0; i < CL; i++) {
+#pragma HLS unroll
+				acc[i] += val[i];
+			}
+		}
+	
+		for (int i = 0; i < CL; i++) {
+#pragma HLS unroll
+			out[i] = acc[i];
+		}
+	}
 public:
-	void read(const int weight[CL * FL], int_t<4,K> mat[CL * FL / K]) {
+	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
 		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -355,19 +396,12 @@ public:
 		}
 	}
 
-	void compute(const int_t<4,K> mat[CL * FL / K], const int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
-		int ptr = 0;
-		for (int y = 0; y < 8; y++) {
-			for (int x = 0; x < 8; x++) {
-#pragma HLS pipeline
-				int_t<4,K> vu = inb[y * WIDTH + x];
-				for (int i = 0; i < CL; i++) {
-					int_t<4,K> wi = mat[ptr++];
-					int16_t acc = muladd<K>(K, vu, wi);
-					outb[j][i] = acc;
-				}
-			}
-		}
+	void compute(int out[CL], const IT mat[CL * FL / K], IT inb[]) {
+		fifo<T> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		flatten(mat, inb, pips);
+		write_result(out, pips);
 	}
 };
 
@@ -384,31 +418,6 @@ void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 			}
 			inb[y * WIDTH + x] = val;
 		}
-	}
-}
-
-template <int CL, int FL, int K>
-void write_result(int out[CL], const int_t<16,CL> outb[FL / K]) {
-	static int16_t acc[CL];
-#pragma HLS array_partition variable=acc
-
-	for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-		acc[i] = 0;
-	}
-
-	for (int j = 0; j < FL / K; j++) {
-#pragma HLS pipeline
-		int_t<16,CL> val = outb[j];
-		for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-			acc[i] += val[i];
-		}
-	}
-
-	for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-		out[i] = acc[i];
 	}
 }
 
@@ -463,7 +472,9 @@ void kernel(
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
-	Dense<CLASS,FLATTEN,CHUNK_SIZE> matmul0;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4,int_t<4,CHANNEL>,int_t<CHUNK_SIZE,CLASS>> matmul0;
+
+#pragma HLS datafow
 
 	read_input<28,28,1>(in, even_buf);
 
@@ -478,7 +489,5 @@ void kernel(
 	maxpool.compute(8, 8, 16, odd_buf, even_buf);
 
 	matmul0.read(matmul0_weight, mat_wi);
-	matmul0.compute(mat_wi, even_buf, out_buf);
-
-	write_result<10,256,16>(out, out_buf);
+	matmul0.compute(out, mat_wi, even_buf);
 }
