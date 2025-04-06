@@ -399,12 +399,12 @@ void kernel(
 #pragma HLS array_partition variable=conv_wi cyclic factor=CHANNEL
 #pragma HLS array_partition variable=conv_thr
 
-	Conv2D<HEIGHT,WIDTH,CHANNEL,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 16, weight, threshold, conv_wi, conv_thr);
 	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
-	maxpool.compute(8, 8, odd_buf, even_buf);
+	maxpool.compute(8, 8, 16, odd_buf, even_buf);
 	write_result<4,4,16>(out, even_buf);
 }
