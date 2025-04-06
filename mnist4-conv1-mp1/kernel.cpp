@@ -235,7 +235,6 @@ private:
 		for (int y = 0; y < H - (KN - 1); y++) {
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
-#pragma HLS pipeline
 				if (x >= w - (KN - 1)) break;
 				WT val = pips.read();
 				T oval;
@@ -401,8 +400,6 @@ void kernel(
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
-
-#pragma HLS pipeline
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 16, weight, threshold, conv_wi, conv_thr);
