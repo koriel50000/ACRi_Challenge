@@ -341,7 +341,7 @@ public:
 template <int CL, int FL, int K, int H, int W, typename IT, typename OT>
 class Dense {
 private:
-	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<T>& pips) {
+	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
