@@ -192,11 +192,11 @@ public:
 			thr[i] = threshold[i];
 		}
 
-		printf("read wi[]\n");
+		printf("read wi[] y=%d x=%d z=%d\n", f, kn * kn, c);
 		ptr = 0;
 		for (int y = 0; y < f; y++) {
 			for (int x = 0; x < kn * kn; x++) {
-				int_t<16> pval = wi[ptr++]);
+				int_t<16> pval = wi[ptr++];
 				printf("[ ");
 				for (int z = 0; z < c; z++) {
 					printf("%d ", pval[z]);
@@ -271,7 +271,7 @@ void read_input(const int in[H * W * C], int_t<16> inb[H * W]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
-			int_t<16> pval = inb[ptr++]);
+			int_t<16> pval = inb[ptr++];
 			printf("[ ");
 			for (int z = 0; z < C; z++) {
 				printf("%d ", pval[z]);
