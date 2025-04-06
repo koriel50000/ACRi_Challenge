@@ -209,13 +209,13 @@ private:
 				val = 0;
 			}
 			if (i < (w + PD) * (KN - 1) - PD) {
-				linebuf_.insert_linebuf(val);
+				linebuf.insert_linebuf(val);
 			}
 			else {
-				linebuf_.slide_window(val);
+				linebuf.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
-				WT oval = linebuf_.get_window();
+				WT oval = linebuf.get_window();
 				pips.write(oval);
 			}
 			x++;
