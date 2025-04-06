@@ -447,10 +447,8 @@ void kernel(
 
 	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
 	static int_t<4,CHANNEL> odd_buf[HEIGHT * WIDTH];
-	static int_t<16,CLASS> out_buf[FLATTEN / CHUNK_SIZE];	
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=out_buf cyclic factor=CHUNK_SIZE
 
 	static int_t<4,CHANNEL> conv0_wi[FILTER * KERNEL * KERNEL];
 	static int conv0_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
@@ -468,8 +466,6 @@ void kernel(
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4,int_t<4,CHANNEL>,int_t<CHUNK_SIZE,CLASS>> matmul0;
-
-#pragma HLS datafow
 
 	read_input<28,28,1>(in, even_buf);
 
