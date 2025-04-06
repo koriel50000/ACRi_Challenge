@@ -107,12 +107,13 @@ void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-		int_t<4,CHANNEL> val;
-		for (int z = 0; z < C; z++) {
+			int_t<4,CHANNEL> val;
+			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			val[z] = in[ptr++];
+				val[z] = in[ptr++];
+			}
+			inb[y * WIDTH + x] = val;
 		}
-		inb[y * WIDTH + x] = val;
 	}
 }
 
