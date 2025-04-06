@@ -20,8 +20,8 @@ const int FILTER = 16;
 const int KERNEL = 5;
 const int THRESHOLD = 3;
 
-const int OWIDTH = WIDTH - KERNEL + 1;
-const int OHEIGHT = HEIGHT - KERNEL + 1;
+const int OWIDTH = 4;
+const int OHEIGHT = 4;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
@@ -190,7 +190,6 @@ template <int H, int W, int C, int KN, typename T, typename WT, int PD = 0, int 
 class Conv2D {
 private:
 	LineBuffer<W + PD, KN, T, WT> linebuf_;
-	T v0_;
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		int x = 0 - (KN - 1);
@@ -205,7 +204,7 @@ private:
 				val = inb[ptr++];
 			}
 			else {
-				val = v0_;
+				val = 0;
 			}
 			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf_.insert_linebuf(val);
@@ -243,8 +242,6 @@ private:
 		}
 	}
 public:
-	Conv2D(T v0 = 0) : v0_(v0) {}
-	
 	void read(const int f, const int kn, const int c, const int weight[], const int threshold[],
 		T wi[], int thr[])
 	{
@@ -270,6 +267,58 @@ public:
 #pragma HLS dataflow
 		windowize(h, w, inb, pips);
 		conv(h, w, c, f, wi, thr, outb, pips);
+	}
+};
+
+template <int H, int W, int C, typename T>
+class MaxPool2x2 {
+private:
+	void maxpool(const T v1, const T v2, T& ov) {
+		for (int z = 0; z < C; z++) {
+#pragma HLS unroll
+			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
+		}
+	}
+
+	void compute_h(const int h, const int w, const T inb[], fifo<T>& pips) {
+		int ptr = 0;
+		for (int i = 0; i < h * w / 2; i++) {
+#pragma HLS pipeline
+			T val1 = inb[ptr++];
+			T val2 = inb[ptr++];
+			T oval;
+			maxpool(val1, val2, oval);
+			pips.write(oval);
+		}
+	}
+
+	void compute_v(const int oh, const int ow, T outb[], fifo<T>& pips) {
+		static T buf[W / 2];
+#pragma HLS array_partition variable=buf
+
+		int ptr = 0;
+		for (int y = 0; y < oh; y++) {
+#pragma HLS pipeline
+			for (int x = 0; x < ow; x++) {
+				buf[x] = pips.read();
+			}
+			for (int x = 0; x < ow; x++) {
+				T val1 = buf[x];
+				T val2 = pips.read();
+				T oval;
+				maxpool(val1, val2, oval);
+				outb[ptr++] = oval;
+			}
+		}
+	}
+
+public:
+	void compute(const int h, const int w, const T inb[], T outb[]) {
+		fifo<T> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		compute_h(h, w, inb, pips);
+		compute_v(h / 2, w / 2, outb, pips);
 	}
 };
 
@@ -321,9 +370,11 @@ void kernel(
 #pragma HLS array_partition variable=conv_thr
 
 	Conv2D<12,12,16,5,int_t<4,16>,win_t<int_t<4,16>>> conv;
+	MaxPool2x2<8,8,16,int_t<4,16>> maxpool;
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 5, 16, weight, threshold, conv_wi, conv_thr);
 	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
-	write_result<8,8,16>(out, odd_buf);
+	maxpool.compute(8, 8, odd_buf, even_buf);
+	write_result<4,4,16>(out, even_buf);
 }
