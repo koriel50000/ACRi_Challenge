@@ -1,3 +1,11 @@
+/*
+ * 4bit量子化および演算回路再利用の検証
+ * ・weightを1bit符号＋3bit指数部の4bitで表現(0,0.125,0.25,0.5,1,2,4,8,NA,-0.125,-0.25,-0.5,-1,-2,-4,-8)
+ * ・バッチ正規化後のactivationを1bit符号＋3bit仮数部の4bitで表現(0,1,2,3,4,5,6,7,NA,-1,-2,-3,-4,-5,-6,-7)
+ * ・乗算は符号なし3bitの掛け算を、6入力LUTが6個のテーブル参照で計算
+ * ・演算回路は最大サイズのConv,Maxpoolを用意し、引数で行列サイズを指定して再利用
+ * ・ダブルバッファリングで演算結果を一時保存
+ */
 #include "kernel.hpp"
 #include <ap_int.h>
 #include <hls_stream.h>
@@ -396,7 +404,7 @@ public:
 		}
 	}
 
-	void compute(int out[CL], const IT mat[CL * FL / K], IT inb[]) {
+	void compute(int out[CL], const IT mat[CL * FL / K], const IT inb[]) {
 		fifo<OT> pips("pipe_fifo");
 
 #pragma HLS dataflow
