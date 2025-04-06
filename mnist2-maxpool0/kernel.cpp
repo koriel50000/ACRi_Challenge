@@ -46,7 +46,7 @@ public:
 template <int H, int W, int C, typename T>
 class MaxPool2x2 {
 private:
-	void maxpool(const T v1, const T v2, T& ov) {
+	void maxpool(const int c, const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			if (z >= c) break;
