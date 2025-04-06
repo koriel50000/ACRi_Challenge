@@ -360,9 +360,9 @@ void kernel(
 #pragma HLS array_partition variable=out cyclic factor=FILTER
 
 	static int_t<4,16> even_buf[HEIGHT * WIDTH];
-	static int_t<4,16> odd_buf[OHEIGHT * OWIDTH];
+	static int_t<4,16> odd_buf[HEIGHT * WIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=odd_buf cyclic factor=OWIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
 	static int_t<4,16> conv_wi[FILTER * KERNEL * KERNEL];
 	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
