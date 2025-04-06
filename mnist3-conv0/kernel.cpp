@@ -12,8 +12,8 @@
 #include <hls_vector.h>
 #include <hls_math.h>
 
-const int WIDTH = 28; // FIXME
-const int HEIGHT = 28; // FIXME
+const int WIDTH = 32;
+const int HEIGHT = 32;
 const int CHANNEL = 16;
 const int FILTER = 16;
 
@@ -323,8 +323,12 @@ void kernel(
 	int out[24 * 24 * 16])
 {
 #pragma HLS interface axis port=in
+#pragma HLS interface axis port=weight
+#pragma HLS interface axis port=threshold
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=28
+#pragma HLS array_partition variable=weight cyclic factor=25
+#pragma HLS array_partition variable=threshold
 #pragma HLS array_partition variable=out cyclic factor=16
 
 	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
