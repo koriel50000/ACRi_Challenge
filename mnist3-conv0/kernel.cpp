@@ -139,7 +139,7 @@ public:
 };
 
 template <int W, int KN, typename T, typename WT>
-class LineBuffer { // FIXME
+class LineBuffer {
 private:
 	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
@@ -233,9 +233,9 @@ private:
 		T outb[], fifo<WT>& pips)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
-//#pragma HLS pipeline
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
+#pragma HLS pipeline
 				if (x >= w - (KN - 1)) break;
 				WT val = pips.read();
 				T oval;
@@ -328,7 +328,7 @@ void kernel(
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=28
 #pragma HLS array_partition variable=weight cyclic factor=25
-#pragma HLS array_partition variable=threshold
+#pragma HLS array_partition variable=threshold cyclic factor=3
 #pragma HLS array_partition variable=out cyclic factor=16
 
 	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
@@ -342,6 +342,8 @@ void kernel(
 #pragma HLS array_partition variable=conv_thr
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
+
+#pragma HLS pipeline
 
 	read_input<28,28,1>(in, even_buf);
 	conv.read(1, 16, weight, threshold, conv_wi, conv_thr);

@@ -139,7 +139,7 @@ public:
 };
 
 template <int W, int KN, typename T, typename WT>
-class LineBuffer { // FIXME
+class LineBuffer {
 private:
 	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
@@ -233,9 +233,9 @@ private:
 		T outb[], fifo<WT>& pips)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
-//#pragma HLS pipeline
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
+#pragma HLS pipeline
 				if (x >= w - (KN - 1)) break;
 				WT val = pips.read();
 				T oval;
@@ -284,37 +284,6 @@ public:
 		conv(h, w, c, f, wi, thr, outb, pips);
 	}
 };
-
-template <int H, int W, int C>
-void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
-	int ptr = 0;
-	for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
-		for (int x = 0; x < W; x++) {
-#pragma HLS unroll
-			int_t<4,CHANNEL> val;
-			for (int z = 0; z < C; z++) {
-				val[z] = in[ptr++];
-			}
-			inb[y * WIDTH + x] = val;
-		}
-	}
-}
-
-template <int H, int W, int C>
-void write_result(int out[H * W * C], const int_t<4,CHANNEL> outb[]) {
-	int ptr = 0;
-	for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
-		for (int x = 0; x < W; x++) {
-			int_t<4,CHANNEL> val = outb[y * WIDTH + x];
-			for (int z = 0; z < C; z++) {
-#pragma HLS unroll
-				out[ptr++] = val[z];
-			}
-		}
-	}
-}
 
 template <int H, int W, int C, typename T>
 class MaxPool2x2 {
@@ -374,6 +343,37 @@ public:
 	}
 };
 
+template <int H, int W, int C>
+void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
+	int ptr = 0;
+	for (int y = 0; y < H; y++) {
+#pragma HLS pipeline
+		for (int x = 0; x < W; x++) {
+			int_t<4,CHANNEL> val;
+			for (int z = 0; z < C; z++) {
+#pragma HLS unroll
+				val[z] = in[ptr++];
+			}
+			inb[y * WIDTH + x] = val;
+		}
+	}
+}
+
+template <int H, int W, int C>
+void write_result(int out[H * W * C], const int_t<4,CHANNEL> outb[]) {
+	int ptr = 0;
+	for (int y = 0; y < H; y++) {
+#pragma HLS pipeline
+		for (int x = 0; x < W; x++) {
+			int_t<4,CHANNEL> val = outb[y * WIDTH + x];
+			for (int z = 0; z < C; z++) {
+#pragma HLS unroll
+				out[ptr++] = val[z];
+			}
+		}
+	}
+}
+
 void kernel(
 	int in[12 * 12 * 16],
 	int weight[16 * 5 * 5 * 16],
@@ -386,7 +386,7 @@ void kernel(
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=weight cyclic factor=16
-#pragma HLS array_partition variable=threshold
+#pragma HLS array_partition variable=threshold cyclic factor=3
 #pragma HLS array_partition variable=out cyclic factor=16
 
 	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
@@ -396,11 +396,13 @@ void kernel(
 
 	static int_t<4,CHANNEL> conv_wi[FILTER * KERNEL * KERNEL];
 	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
-#pragma HLS array_partition variable=conv_wi cyclic factor=CHANNEL
+#pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
+
+#pragma HLS pipeline
 
 	read_input<12,12,16>(in, even_buf);
 	conv.read(16, 16, weight, threshold, conv_wi, conv_thr);

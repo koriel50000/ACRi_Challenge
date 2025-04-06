@@ -101,7 +101,7 @@ public:
 	}
 };
 
-template<int H, int W, int C>
+template <int H, int W, int C>
 void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
@@ -117,7 +117,7 @@ void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	}
 }
 
-template<int H, int W, int C>
+template <int H, int W, int C>
 void write_result(int out[H * W * C], const int_t<4,CHANNEL> outb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
