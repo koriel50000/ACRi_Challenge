@@ -74,7 +74,7 @@ int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < N; i++) {
-		// @see UG1399 Vitis HLS Coding Styles > Loops > Variable Loop Bounds
+		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
@@ -326,6 +326,7 @@ void kernel(
 	int out[24 * 24 * 16])
 {
 #pragma HLS interface axis port=in
+#pragma HLS interface axis port=weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=28
 #pragma HLS array_partition variable=weight cyclic factor=25
