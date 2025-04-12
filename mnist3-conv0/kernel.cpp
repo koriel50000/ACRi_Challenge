@@ -108,6 +108,7 @@ uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
 	ap_uint<1> b6 = acc >= thr[6];
 	ap_uint<8> bits = (0, b6, b5, b4, b3, b2, b1, b0);
 	// return indexTable[((bits + 1) * 0x17)(7, 5)];
+	// @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
 	return __builtin_ctz(bits + 1);
 }
 
