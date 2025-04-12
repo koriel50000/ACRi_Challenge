@@ -183,11 +183,11 @@ void read_input(const int in[H * W * C], T inb[]) {
 
 void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=weight
+#pragma HLS interface axis port=matmul0_weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
-#pragma HLS array_partition variable=out cyclic factor=10
+#pragma HLS array_partition variable=out
 
 	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
 	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
@@ -195,7 +195,7 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
 	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
+#pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 

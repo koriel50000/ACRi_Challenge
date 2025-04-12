@@ -446,7 +446,7 @@ void kernel(
 	int threshold0[3],
 	int conv1_weight[16 * 5 * 5 * 16],
 	int threshold1[3],
-	int matmul0_weight[256 * 10],
+	int matmul0_weight[10 * 256],
 	int out[10])
 {
 #pragma HLS interface axis port=in
@@ -456,11 +456,11 @@ void kernel(
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=conv0_weight cyclic factor=25
-#pragma HLS array_partition variable=threshold0 cyclic factor=3
+#pragma HLS array_partition variable=threshold0
 #pragma HLS array_partition variable=conv1_weight cyclic factor=16
-#pragma HLS array_partition variable=threshold1 cyclic factor=3
+#pragma HLS array_partition variable=threshold1
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
-#pragma HLS array_partition variable=out cyclic factor=10
+#pragma HLS array_partition variable=out
 
 	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
 	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
@@ -473,7 +473,7 @@ void kernel(
 #pragma HLS array_partition variable=conv_thr
 
 	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
+#pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
