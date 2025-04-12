@@ -247,6 +247,7 @@ private:
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
@@ -262,9 +263,9 @@ public:
 	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
 		int ptr = 0;
 		for (int j = 0; j < F; j++) {
-#pragma HLS pipeline
 			if (j >= f) break;
 			for (int k = 0; k < KN * KN; k++) {
+#pragma HLS pipeline
 				T val;
 				for (int i = 0; i < C; i++) {
 #pragma HLS unroll
@@ -427,11 +428,11 @@ template <int H, int W, int C, typename T>
 void read_input(const int in[H * W * C], T inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
-#pragma HLS unroll
+#pragma HLS pipeline
 			T val;
 			for (int z = 0; z < C; z++) {
+#pragma HLS unroll
 				val[z] = in[ptr++];
 			}
 			inb[y * WIDTH + x] = val;
