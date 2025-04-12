@@ -7,13 +7,14 @@
  * ・ダブルバッファリングで演算結果を一時保存
  */
 #include "kernel.hpp"
+#include <stdint.h>
 #include <ap_int.h>
+#include <hls_math.h>
 #include <hls_stream.h>
 #include <hls_vector.h>
-#include <hls_math.h>
 
-const int WIDTH = 32;
-const int HEIGHT = 32;
+const int WIDTH = 28;
+const int HEIGHT = 28;
 const int CHANNEL = 16;
 const int FILTER = 16;
 
@@ -24,8 +25,10 @@ using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 template <typename T>
 using win_t = hls::vector<T, KERNEL * KERNEL>;
+template <typename T>
+using fifo = hls::stream<T>;
 
-template <int W, int N>
+template <int N, int W = 4>
 class int_t {
 private:
 	ap_uint<W*N> buf_;
@@ -48,9 +51,6 @@ public:
 	}
 };
 
-template <typename T>
-using fifo = hls::stream<T>;
-
 uint6_t mul66(const uint6_t i) {
 	static const uint6_t table[] = {
 		0,	0,	0,	0,	0,	0,	0,	0,
@@ -71,11 +71,12 @@ int8_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int N>
-int16_t muladd(const int n, const int_t<4,N> vu, const int_t<4,N> wi) {
+int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < N; i++) {
+		// @see UG1399 Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
@@ -191,9 +192,12 @@ public:
 	}
 };
 
-template <int H, int W, int C, int F, int KN, typename T, typename WT, int PD = 0, int ST = 1>
+template <int H, int W, int C, int F, int KN, int PD = 0, int ST = 1>
 class Conv2D {
 private:
+	using T = int_t<C>;
+	using WT = win_t<T>;
+
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
 
@@ -284,14 +288,14 @@ public:
 	}
 };
 
-template <int H, int W, int C>
-void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
+template <int H, int W, int C, typename T>
+void read_input(const int in[H * W * C], T inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
 #pragma HLS unroll
-			int_t<4,CHANNEL> val;
+			T val;
 			for (int z = 0; z < C; z++) {
 				val[z] = in[ptr++];
 			}
@@ -300,13 +304,13 @@ void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	}
 }
 
-template <int H, int W, int C>
-void write_result(int out[H * W * C], const int_t<4,CHANNEL> outb[]) {
+template <int H, int W, int C, typename T>
+void write_result(int out[H * W * C], const T outb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
-			int_t<4,CHANNEL> val = outb[y * WIDTH + x];
+			T val = outb[y * WIDTH + x];
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 				out[ptr++] = val[z];
@@ -322,28 +326,26 @@ void kernel(
 	int out[24 * 24 * 16])
 {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=weight
-#pragma HLS interface axis port=threshold
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=28
 #pragma HLS array_partition variable=weight cyclic factor=25
 #pragma HLS array_partition variable=threshold cyclic factor=3
 #pragma HLS array_partition variable=out cyclic factor=16
 
-	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
-	static int_t<4,CHANNEL> odd_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	static int_t<4,CHANNEL> conv_wi[FILTER * KERNEL * KERNEL];
+	static int_t<CHANNEL> conv_wi[FILTER * KERNEL * KERNEL];
 	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 
-	read_input<28,28,1>(in, even_buf);
+	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
 	conv.read(1, 16, weight, threshold, conv_wi, conv_thr);
 	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
-	write_result<24,24,16>(out, odd_buf);
+	write_result<24,24,16,int_t<CHANNEL>>(out, odd_buf);
 }
