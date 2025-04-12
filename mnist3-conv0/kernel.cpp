@@ -322,16 +322,16 @@ void write_result(int out[H * W * C], const T outb[]) {
 
 void kernel(
 	int in[28 * 28 * 1],
-	int weight[16 * 5 * 5 * 1],
-	int threshold[3],
+	int conv0_weight[16 * 5 * 5 * 1],
+	int threshold0[3],
 	int out[24 * 24 * 16])
 {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=weight
+#pragma HLS interface axis port=conv0_weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=28
-#pragma HLS array_partition variable=weight cyclic factor=25
-#pragma HLS array_partition variable=threshold cyclic factor=3
+#pragma HLS array_partition variable=conv0_weight cyclic factor=25
+#pragma HLS array_partition variable=threshold0
 #pragma HLS array_partition variable=out cyclic factor=16
 
 	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
@@ -347,7 +347,7 @@ void kernel(
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 
 	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
-	conv.read(1, 16, weight, threshold, conv_wi, conv_thr);
+	conv.read(1, 16, conv0_weight, threshold0, conv_wi, conv_thr);
 	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
 	write_result<24,24,16,int_t<CHANNEL>>(out, odd_buf);
 }
