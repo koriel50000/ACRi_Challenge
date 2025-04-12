@@ -19,8 +19,6 @@ const int CHANNEL = 16;
 
 using uint4_t = ap_uint<4>;
 template <typename T>
-using win_t = hls::vector<T, KERNEL * KERNEL>;
-template <typename T>
 using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
