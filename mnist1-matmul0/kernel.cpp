@@ -9,8 +9,17 @@
 #include "kernel.hpp"
 #include <stdint.h>
 #include <ap_int.h>
-#include <hls_stream.h>
 #include <hls_math.h>
+#include <hls_stream.h>
+#include <hls_vector.h>
+
+const int WIDTH = 32;
+const int HEIGHT = 32;
+const int CHANNEL = 16;
+const int FILTER = 16;
+
+const int KERNEL = 5;
+const int THRESHOLD = 3;
 
 const int FLATTEN = 256;
 const int CLASS = 10;
@@ -18,7 +27,6 @@ const int CHUNK_SIZE = 16;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
-
 template <typename T>
 using fifo = hls::stream<T>;
 
@@ -97,7 +105,7 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inb[y * W + x];
+				IT vu = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -157,37 +165,41 @@ public:
 	}
 };
 
-template <int FL, int K>
-void read_input(const int in[FL], int_t<K> inb[FL / K]) {
+template <int H, int W, int C, typename T>
+void read_input(const int in[H * W * C], T inb[]) {
 	int ptr = 0;
-	for (int j = 0; j < FL / K; j++) {
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-		int_t<K> val;
-		for (int k = 0; k < K; k++) {
+			T val;
+			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			val[k] = in[ptr++];
+				val[z] = in[ptr++];
+			}
+			inb[y * WIDTH + x] = val;
 		}
-		inb[j] = val;
 	}
 }
 
-void kernel(int in[256], int weight[10 * 256], int out[10]) {
+void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
-#pragma HLS array_partition variable=weight cyclic factor=16
-#pragma HLS array_partition variable=out
+#pragma HLS array_partition variable=matmul0_weight cyclic factor=16
+#pragma HLS array_partition variable=out cyclic factor=10
 
-	static int_t<CHUNK_SIZE> buf[FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=buf cyclic factor=FLATTEN / CHUNK_SIZE
+	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
+#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
 	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=mat_wi
+#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	read_input<FLATTEN,CHUNK_SIZE>(in, buf);
-	matmul0.read(weight, mat_wi);
-	matmul0.compute_and_write_result(out, mat_wi, buf);
+	read_input<4,4,16,int_t<16>>(in, even_buf);
+	matmul0.read(matmul0_weight, mat_wi);
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }

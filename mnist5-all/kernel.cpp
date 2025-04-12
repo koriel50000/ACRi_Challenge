@@ -13,8 +13,8 @@
 #include <hls_stream.h>
 #include <hls_vector.h>
 
-const int WIDTH = 28;
-const int HEIGHT = 28;
+const int WIDTH = 32;
+const int HEIGHT = 32;
 const int CHANNEL = 16;
 const int FILTER = 16;
 
@@ -364,7 +364,7 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inb[y * W + x];
+				IT vu = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
