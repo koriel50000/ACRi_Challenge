@@ -13,8 +13,8 @@
 #include <hls_stream.h>
 #include <hls_vector.h>
 
-const int WIDTH = 28;
-const int HEIGHT = 28;
+const int WIDTH = 32;
+const int HEIGHT = 32;
 const int CHANNEL = 16;
 const int FILTER = 16;
 
@@ -74,7 +74,7 @@ int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < N; i++) {
-		// @see UG1399 Vitis HLS Coding Styles > Loops > Variable Loop Bounds
+		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
@@ -243,6 +243,7 @@ private:
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
@@ -258,9 +259,9 @@ public:
 	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
 		int ptr = 0;
 		for (int j = 0; j < F; j++) {
-#pragma HLS pipeline
 			if (j >= f) break;
 			for (int k = 0; k < KN * KN; k++) {
+#pragma HLS pipeline
 				T val;
 				for (int i = 0; i < C; i++) {
 #pragma HLS unroll
@@ -353,8 +354,8 @@ template <int H, int W, int C, typename T>
 void read_input(const int in[H * W * C], T inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
 			T val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -369,8 +370,8 @@ template <int H, int W, int C, typename T>
 void write_result(int out[H * W * C], const T outb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
 			T val = outb[y * WIDTH + x];
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
