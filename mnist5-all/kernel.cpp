@@ -28,8 +28,6 @@ const int CHUNK_SIZE = 16;
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 template <typename T>
-using win_t = hls::vector<T, KERNEL * KERNEL>;
-template <typename T>
 using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
@@ -80,7 +78,7 @@ int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < N; i++) {
-		// @see UG1399 Vitis HLS Coding Styles > Loops > Variable Loop Bounds
+		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
@@ -98,12 +96,12 @@ int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 }
 
 uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
-	static const uint4_t indexTable[] = {
-		0, 1, 2, 4, 7, 3, 6, 5,
-	};
-#pragma HLS array_partition variable=indexTable
-	// @see HD, Figure 5-26. Number of trailing zeros using a de Brujin cycle.
-	// https://en.wikipedia.org/wiki/De_Bruijn_sequence
+// 	static const uint4_t indexTable[] = {
+// 		0, 1, 2, 4, 7, 3, 6, 5,
+// 	};
+// #pragma HLS array_partition variable=indexTable
+// 	// @see HD, Figure 5-26. Number of trailing zeros using a de Brujin cycle.
+// 	// https://en.wikipedia.org/wiki/De_Bruijn_sequence
 	
 	ap_uint<1> b0 = acc >= thr[0];
 	ap_uint<1> b1 = acc >= thr[1];
@@ -113,7 +111,9 @@ uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
 	ap_uint<1> b5 = acc >= thr[5];
 	ap_uint<1> b6 = acc >= thr[6];
 	ap_uint<8> bits = (0, b6, b5, b4, b3, b2, b1, b0);
-	return indexTable[((bits + 1) * 0x17)(7, 5)];
+	// return indexTable[((bits + 1) * 0x17)(7, 5)];
+	// @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
+	return __builtin_ctz(bits + 1);
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
@@ -200,7 +200,7 @@ template <int H, int W, int C, int F, int KN, int PD = 0, int ST = 1>
 class Conv2D {
 private:
 	using T = int_t<C>;
-	using WT = win_t<T>;
+	using WT = hls::vector<T, KN * KN>;
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
@@ -307,9 +307,9 @@ private:
 
 	void compute_h(const int h, const int w, const int c, const T inb[], fifo<T>& pips) {
 		for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
+#pragma HLS pipeline
 				if (x >= w) break;
 				T val1 = inb[y * WIDTH + x];
 				T val2 = inb[y * WIDTH + x + 1];
@@ -325,13 +325,14 @@ private:
 #pragma HLS array_partition variable=buf
 
 		for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
 				if (x >= ow) break;
 				T val1 = buf[x];
 				T val2 = pips.read();
@@ -362,10 +363,10 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-#pragma HLS pipeline
-				IT vu = inb[y * WIDTH + x];
+				IT vu = inb[y * W + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
+#pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
@@ -448,11 +449,6 @@ void kernel(
 	int out[10])
 {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=conv0_weight
-#pragma HLS interface axis port=threshold0
-#pragma HLS interface axis port=conv1_weight
-#pragma HLS interface axis port=threshold1
-#pragma HLS interface axis port=matmul0_weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=conv0_weight cyclic factor=25
@@ -467,15 +463,10 @@ void kernel(
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	static int_t<CHANNEL> conv0_wi[FILTER * KERNEL * KERNEL];
-	static int conv0_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
-#pragma HLS array_partition variable=conv0_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=conv0_thr
-
-	static int_t<CHANNEL> conv1_wi[FILTER * KERNEL * KERNEL];
-	static int conv1_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
-#pragma HLS array_partition variable=conv1_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=conv1_thr
+	static int_t<CHANNEL> conv_wi[FILTER * KERNEL * KERNEL];
+	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
+#pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=conv_thr
 
 	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
@@ -486,13 +477,13 @@ void kernel(
 
 	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
 
-	conv.read(1, 16, conv0_weight, threshold0, conv0_wi, conv0_thr);
-	conv.compute(28, 28, 1, 16, conv0_wi, conv0_thr, even_buf, odd_buf);
+	conv.read(1, 16, conv0_weight, threshold0, conv_wi, conv_thr);
+	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
 
 	maxpool.compute(24, 24, 16, odd_buf, even_buf);
 
-	conv.read(16, 16, conv1_weight, threshold1, conv1_wi, conv1_thr);
-	conv.compute(12, 12, 16, 16, conv1_wi, conv1_thr, even_buf, odd_buf);
+	conv.read(16, 16, conv1_weight, threshold1, conv_wi, conv_thr);
+	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
 
 	maxpool.compute(8, 8, 16, odd_buf, even_buf);
 
