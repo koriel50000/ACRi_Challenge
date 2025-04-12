@@ -387,6 +387,7 @@ void kernel(
 	int out[4 * 4 * 16])
 {
 #pragma HLS interface axis port=in
+#pragma HLS interface axis port=weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=weight cyclic factor=16
