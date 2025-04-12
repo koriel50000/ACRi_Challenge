@@ -24,8 +24,6 @@ const int THRESHOLD = 3;
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 template <typename T>
-using win_t = hls::vector<T, KERNEL * KERNEL>;
-template <typename T>
 using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
@@ -94,12 +92,12 @@ int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 }
 
 uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
-	static const uint4_t indexTable[] = {
-		0, 1, 2, 4, 7, 3, 6, 5,
-	};
-#pragma HLS array_partition variable=indexTable
-	// @see HD, Figure 5-26. Number of trailing zeros using a de Brujin cycle.
-	// https://en.wikipedia.org/wiki/De_Bruijn_sequence
+// 	static const uint4_t indexTable[] = {
+// 		0, 1, 2, 4, 7, 3, 6, 5,
+// 	};
+// #pragma HLS array_partition variable=indexTable
+// 	// @see HD, Figure 5-26. Number of trailing zeros using a de Brujin cycle.
+// 	// https://en.wikipedia.org/wiki/De_Bruijn_sequence
 	
 	ap_uint<1> b0 = acc >= thr[0];
 	ap_uint<1> b1 = acc >= thr[1];
@@ -109,7 +107,8 @@ uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
 	ap_uint<1> b5 = acc >= thr[5];
 	ap_uint<1> b6 = acc >= thr[6];
 	ap_uint<8> bits = (0, b6, b5, b4, b3, b2, b1, b0);
-	return indexTable[((bits + 1) * 0x17)(7, 5)];
+	// return indexTable[((bits + 1) * 0x17)(7, 5)];
+	return __builtin_ctz(bits + 1);
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
@@ -196,7 +195,7 @@ template <int H, int W, int C, int F, int KN, int PD = 0, int ST = 1>
 class Conv2D {
 private:
 	using T = int_t<C>;
-	using WT = win_t<T>;
+	using WT = hls::vector<T, KN * KN>;
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
