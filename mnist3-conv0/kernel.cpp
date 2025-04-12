@@ -15,7 +15,7 @@
 
 const int WIDTH = 32;
 const int HEIGHT = 32;
-const int CHANNEL = 32;
+const int CHANNEL = 16;
 const int FILTER = 16;
 
 const int KERNEL = 5;
