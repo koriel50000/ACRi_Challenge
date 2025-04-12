@@ -7,10 +7,11 @@
  * ・ダブルバッファリングで演算結果を一時保存
  */
 #include "kernel.hpp"
+#include <stdint.h>
 #include <ap_int.h>
+#include <hls_math.h>
 #include <hls_stream.h>
 #include <hls_vector.h>
-#include <hls_math.h>
 
 const int WIDTH = 28;
 const int HEIGHT = 28;
@@ -74,11 +75,12 @@ int8_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int N>
-int16_t muladd(const int n, const int_t<4,N> vu, const int_t<4,N> wi) {
+int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < N; i++) {
+		// @see UG1399 Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
@@ -194,9 +196,12 @@ public:
 	}
 };
 
-template <int H, int W, int C, int F, int KN, typename T, typename WT, int PD = 0, int ST = 1>
+template <int H, int W, int C, int F, int KN, int PD = 0, int ST = 1>
 class Conv2D {
 private:
+	using T = int_t<C>;
+	using WT = win_t<T>;
+
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
 
@@ -287,9 +292,11 @@ public:
 	}
 };
 
-template <int H, int W, int C, typename T>
+template <int H, int W, int C>
 class MaxPool2x2 {
 private:
+	using T = int_t<C>;
+
 	void maxpool(const int c, const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -345,9 +352,12 @@ public:
 	}
 };
 
-template <int CL, int FL, int K, int H, int W, typename IT, typename OT>
+template <int CL, int FL, int K, int H, int W>
 class Dense {
 private:
+	using IT = int_t<K>;
+	using OT = int_t<CL,16>;
+
 	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
@@ -403,7 +413,7 @@ public:
 		}
 	}
 
-	void compute(int out[CL], const IT mat[CL * FL / K], const IT inb[]) {
+	void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], const IT inb[]) {
 		fifo<OT> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -412,14 +422,14 @@ public:
 	}
 };
 
-template <int H, int W, int C>
-void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
+template <int H, int W, int C, typename T>
+void read_input(const int in[H * W * C], T inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
 #pragma HLS unroll
-			int_t<4,CHANNEL> val;
+			T val;
 			for (int z = 0; z < C; z++) {
 				val[z] = in[ptr++];
 			}
@@ -452,29 +462,29 @@ void kernel(
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
 #pragma HLS array_partition variable=out cyclic factor=10
 
-	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
-	static int_t<4,CHANNEL> odd_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	static int_t<4,CHANNEL> conv0_wi[FILTER * KERNEL * KERNEL];
+	static int_t<CHANNEL> conv0_wi[FILTER * KERNEL * KERNEL];
 	static int conv0_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
 #pragma HLS array_partition variable=conv0_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv0_thr
 
-	static int_t<4,CHANNEL> conv1_wi[FILTER * KERNEL * KERNEL];
+	static int_t<CHANNEL> conv1_wi[FILTER * KERNEL * KERNEL];
 	static int conv1_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
 #pragma HLS array_partition variable=conv1_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv1_thr
 
-	static int_t<4,CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
+	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,int_t<4,CHANNEL>,win_t<int_t<4,CHANNEL>>> conv;
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
-	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4,int_t<4,CHANNEL>,int_t<CHUNK_SIZE,CLASS>> matmul0;
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	read_input<28,28,1>(in, even_buf);
+	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
 
 	conv.read(1, 16, conv0_weight, threshold0, conv0_wi, conv0_thr);
 	conv.compute(28, 28, 1, 16, conv0_wi, conv0_thr, even_buf, odd_buf);
@@ -487,5 +497,5 @@ void kernel(
 	maxpool.compute(8, 8, 16, odd_buf, even_buf);
 
 	matmul0.read(matmul0_weight, mat_wi);
-	matmul0.compute(out, mat_wi, even_buf);
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
