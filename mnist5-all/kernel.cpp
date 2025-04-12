@@ -28,8 +28,10 @@ using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 template <typename T>
 using win_t = hls::vector<T, KERNEL * KERNEL>;
+template <typename T>
+using fifo = hls::stream<T>;
 
-template <int W, int N>
+template <int N, int W = 4>
 class int_t {
 private:
 	ap_uint<W*N> buf_;
@@ -51,9 +53,6 @@ public:
 		return buf_(W * index + W - 1, W * index);
 	}
 };
-
-template <typename T>
-using fifo = hls::stream<T>;
 
 uint6_t mul66(const uint6_t i) {
 	static const uint6_t table[] = {

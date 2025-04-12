@@ -7,18 +7,20 @@
  * ・ダブルバッファリングで演算結果を一時保存
  */
 #include "kernel.hpp"
+#include <stdint.h>
 #include <ap_int.h>
-#include <hls_math.h>
 
 const int FLATTEN = 256;
 const int CLASS = 10;
-
 const int CHUNK_SIZE = 16;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 
-template <int W, int N>
+template <typename T>
+using fifo = hls::stream<T>;
+
+template <int N, int W = 4>
 class int_t {
 private:
 	ap_uint<W*N> buf_;
@@ -60,28 +62,72 @@ int8_t mul(const uint4_t v, const uint4_t w) {
 	return (v[3] ^ w[3]) == 1 ? (-oval).to_int() : oval.to_int();
 }
 
-int16_t muladd16(const int_t<4,16> vu, const int_t<4,16> wi) {
-	static int16_t t[16];
+template <int N>
+int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
+	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < N; i++) {
+		// @see UG1399 Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
+		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
 	}
 
-	for (int d = 1; d < 16; d *= 2) {
-		for (int i = 0; i < 16; i += d * 2) {
+	for (int d = 1; d < N; d *= 2) {
+		if (d >= n) break;
+		for (int i = 0; i < N; i += d * 2) {
 #pragma HLS unroll
+			if (i >= n) break;
 			t[i] += t[i + d];
 		}
 	}
 	return t[0];
 }
 
-template <int CL, int FL, int K>
+template <int CL, int FL, int K, int H, int W>
 class Dense {
+private:
+	using IT = int_t<K>;
+	using OT = int_t<CL, FL / K>;
+
+	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
+		int ptr = 0;
+		for (int y = 0; y < H; y++) {
+			for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
+				IT vu = inb[y * WIDTH + x];
+				OT oval;
+				for (int i = 0; i < CL; i++) {
+					IT wi = mat[ptr++];
+					int16_t acc = muladd<K>(K, vu, wi);
+					oval[i] = acc;
+				}
+				pips.write(oval);
+			}
+		}
+	}
+
+	void write_result(int out[CL], fifo<OT>& pips) {
+		static int16_t acc[CL] = {};
+#pragma HLS array_partition variable=acc
+	
+		for (int j = 0; j < FL / K; j++) {
+#pragma HLS pipeline
+			OT val = pips.read();
+			for (int i = 0; i < CL; i++) {
+#pragma HLS unroll
+				acc[i] += val[i];
+			}
+		}
+	
+		for (int i = 0; i < CL; i++) {
+#pragma HLS unroll
+			out[i] = acc[i];
+		}
+	}
 public:
-	void read(const int weight[CL * FL], int_t<4,K> mat[CL * FL / K]) {
+	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
 		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -95,26 +141,21 @@ public:
 		}
 	}
 
-	void compute(const int_t<4,K> mat[CL * FL / K], const int_t<4,K> inb[FL / K], int_t<16,CL> outb[FL / K]) {
-		int ptr = 0;
-		for (int j = 0; j < FL / K; j++) {
-#pragma HLS pipeline
-			int_t<4,K> vu = inb[j];
-			for (int i = 0; i < CL; i++) {
-				int_t<4,K> wi = mat[ptr++];
-				int16_t acc = muladd16(vu, wi);
-				outb[j][i] = acc;
-			}
-		}
+	void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], const IT inb[]) {
+		fifo<OT> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		flatten(mat, inb, pips);
+		write_result(out, pips);
 	}
 };
 
 template <int FL, int K>
-void read_input(const int in[FL], int_t<4,K> inb[FL / K]) {
+void read_input(const int in[FL], int_t<K> inb[FL / K]) {
 	int ptr = 0;
 	for (int j = 0; j < FL / K; j++) {
 #pragma HLS pipeline
-		int_t<4,K> val;
+		int_t<K> val;
 		for (int k = 0; k < K; k++) {
 #pragma HLS unroll
 			val[k] = in[ptr++];
@@ -123,50 +164,22 @@ void read_input(const int in[FL], int_t<4,K> inb[FL / K]) {
 	}
 }
 
-template <int CL, int FL, int K>
-void write_result(int out[CL], const int_t<16,CL> outb[FL / K]) {
-	static int16_t acc[CL];
-#pragma HLS array_partition variable=acc
-
-	for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-		acc[i] = 0;
-	}
-
-	for (int j = 0; j < FL / K; j++) {
-#pragma HLS pipeline
-		int_t<16,CL> val = outb[j];
-		for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-			acc[i] += val[i];
-		}
-	}
-
-	for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
-		out[i] = acc[i];
-	}
-}
-
-void kernel(int in[FLATTEN], int weight[CLASS * FLATTEN], int out[CLASS]) {
+void kernel(int in[256], int weight[10 * 256], int out[10]) {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
-#pragma HLS array_partition variable=in cyclic factor=CHUNK_SIZE
-#pragma HLS array_partition variable=weight cyclic factor=CHUNK_SIZE
+#pragma HLS array_partition variable=in cyclic factor=16
+#pragma HLS array_partition variable=weight cyclic factor=16
 #pragma HLS array_partition variable=out
 
-	static int_t<4,CHUNK_SIZE> even_buf[FLATTEN / CHUNK_SIZE];
-	static int_t<16,CLASS> odd_buf[FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
-#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
+	static int_t<CHUNK_SIZE> buf[FLATTEN / CHUNK_SIZE];
+#pragma HLS array_partition variable=buf cyclic factor=FLATTEN / CHUNK_SIZE
 
-	static int_t<4,CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
+	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi
 
-	Dense<CLASS,FLATTEN,CHUNK_SIZE> matmul0;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	read_input<FLATTEN,CHUNK_SIZE>(in, even_buf);
+	read_input<FLATTEN,CHUNK_SIZE>(in, buf);
 	matmul0.read(weight, mat_wi);
-	matmul0.compute(mat_wi, even_buf, odd_buf);
-	write_result<CLASS,FLATTEN,CHUNK_SIZE>(out, odd_buf);
+	matmul0.compute_and_write_result(out, mat_wi, buf);
 }
