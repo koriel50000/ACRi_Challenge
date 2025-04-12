@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <ap_int.h>
 #include <hls_stream.h>
+#include <hls_math.h>
 
 const int FLATTEN = 256;
 const int CLASS = 10;
@@ -97,7 +98,7 @@ private:
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-				IT vu = inb[y * WIDTH + x];
+				IT vu = inb[y * W + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 					IT wi = mat[ptr++];
