@@ -7,20 +7,23 @@
  * ・ダブルバッファリングで演算結果を一時保存
  */
 #include "kernel.hpp"
+#include <stdint.h>
 #include <ap_int.h>
-#include <hls_stream.h>
 #include <hls_math.h>
+#include <hls_stream.h>
+#include <hls_vector.h>
 
 const int WIDTH = 32;
 const int HEIGHT = 32;
 const int CHANNEL = 16;
 
 using uint4_t = ap_uint<4>;
-
+template <typename T>
+using win_t = hls::vector<T, KERNEL * KERNEL>;
 template <typename T>
 using fifo = hls::stream<T>;
 
-template <int W, int N>
+template <int N, int W = 4>
 class int_t {
 private:
 	ap_uint<W*N> buf_;
@@ -43,9 +46,11 @@ public:
 	}
 };
 
-template <int H, int W, int C, typename T>
+template <int H, int W, int C>
 class MaxPool2x2 {
 private:
+	using T = int_t<C>;
+
 	void maxpool(const int c, const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
@@ -56,9 +61,9 @@ private:
 
 	void compute_h(const int h, const int w, const int c, const T inb[], fifo<T>& pips) {
 		for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
+#pragma HLS pipeline
 				if (x >= w) break;
 				T val1 = inb[y * WIDTH + x];
 				T val2 = inb[y * WIDTH + x + 1];
@@ -74,13 +79,14 @@ private:
 #pragma HLS array_partition variable=buf
 
 		for (int y = 0; y < H; y++) {
-#pragma HLS pipeline
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
 				if (x >= ow) break;
 				T val1 = buf[x];
 				T val2 = pips.read();
@@ -101,13 +107,13 @@ public:
 	}
 };
 
-template <int H, int W, int C>
-void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
+template <int H, int W, int C, typename T>
+void read_input(const int in[H * W * C], T inb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
-			int_t<4,CHANNEL> val;
+			T val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 				val[z] = in[ptr++];
@@ -117,13 +123,13 @@ void read_input(const int in[H * W * C], int_t<4,CHANNEL> inb[]) {
 	}
 }
 
-template <int H, int W, int C>
-void write_result(int out[H * W * C], const int_t<4,CHANNEL> outb[]) {
+template <int H, int W, int C, typename T>
+void write_result(int out[H * W * C], const T outb[]) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 #pragma HLS pipeline
 		for (int x = 0; x < W; x++) {
-			int_t<4,CHANNEL> val = outb[y * WIDTH + x];
+			T val = outb[y * WIDTH + x];
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 				out[ptr++] = val[z];
@@ -140,14 +146,14 @@ void kernel(int in[24 * 24 * 16],
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=out cyclic factor=16
 
-	static int_t<4,CHANNEL> even_buf[HEIGHT * WIDTH];
-	static int_t<4,CHANNEL> odd_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
+	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL,int_t<4,CHANNEL>> maxpool;
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 
-	read_input<24,24,16>(in, even_buf);
+	read_input<24,24,16,int_t<CHANNEL>>(in, even_buf);
 	maxpool.compute(24, 24, 16, even_buf, odd_buf);
-	write_result<12,12,16>(out, odd_buf);
+	write_result<12,12,16,int_t<CHANNEL>>(out, odd_buf);
 }
