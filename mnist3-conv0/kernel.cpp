@@ -13,9 +13,9 @@
 #include <hls_stream.h>
 #include <hls_vector.h>
 
-const int WIDTH = 28;
-const int HEIGHT = 28;
-const int CHANNEL = 16;
+const int WIDTH = 32;
+const int HEIGHT = 32;
+const int CHANNEL = 32;
 const int FILTER = 16;
 
 const int KERNEL = 5;
