@@ -34,9 +34,9 @@ using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
 class int_t {
-public:
+private:
 	ap_uint<W*N> buf_;
-
+public:
 	int_t() : buf_(0) {}
 	int_t(int i) : buf_(i) {}
 	int_t(unsigned int ui) : buf_(ui) {}
