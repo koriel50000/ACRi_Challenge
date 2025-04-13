@@ -447,7 +447,7 @@ void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], 
 }
 
 void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-fifo<WT> pips("pipe_fifo");
+fifo<hls::vector<data_t, KERNEL * KERNEL>> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	conv.windowize(12, 12, in_buf, pips);
