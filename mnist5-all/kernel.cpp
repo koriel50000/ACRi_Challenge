@@ -430,7 +430,7 @@ void task1(const int in[], block_data_t out_buf, const int weight[], const int t
 }
 
 void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-	fifo<WT> pips("pipe_fifo");
+	fifo<hls::vector<data_t, KERNEL * KERNEL>> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	conv.windowize(28, 28, in_buf, pips);
@@ -438,7 +438,7 @@ void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], c
 }
 
 void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
-	fifo<T> pips("pipe_fifo");
+	fifo<data_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	maxpool.compute_h(24, 24, 16, in_buf, pips);
@@ -455,7 +455,7 @@ fifo<WT> pips("pipe_fifo");
 }
 
 void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
-	fifo<T> pips("pipe_fifo");
+	fifo<data_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	maxpool.compute_h(8, 8, 16, in_buf, pips);
@@ -464,7 +464,7 @@ void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], 
 }
 
 void task6(const block_data_t in_buf, int out[], const data_t wi[]) {
-	fifo<OT> pips("pipe_fifo");
+	fifo<int_t<10,16>> pips("pipe_fifo");
 
 #pragma HLS dataflow
 		matmul0.flatten(wi, in_buf, pips);
