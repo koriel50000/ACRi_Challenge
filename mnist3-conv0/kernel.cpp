@@ -218,6 +218,20 @@ private:
 #pragma HLS unroll
 			thr[i] = threshold[i];
 		}
+
+		ptr = 0;
+		for (int j = 0; j < F; j++) {
+			for (int k = 0; k < KERNEL * KERNEL; k++) {
+				T val = wi[ptr++];
+				printf("I64(0x%016lx), ", val.buf_.to_long());
+			}
+			printf("\n");
+		}
+
+		for (int i = 0; i < THRESHOLD; i++) {
+			printf("%d ", thr[i]);
+		}
+		printf("\n");
 	}
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {

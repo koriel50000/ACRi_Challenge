@@ -7,10 +7,10 @@
  * ・ダブルバッファリングで演算結果を一時保存
  */
 #include "kernel.hpp"
-#include <stdint.h>
 #include <ap_int.h>
 #include <hls_math.h>
 #include <hls_stream.h>
+#include <hls_streamofblocks.h>
 #include <hls_vector.h>
 
 #define I64(i) int_t<16>(i)
