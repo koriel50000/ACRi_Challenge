@@ -513,9 +513,9 @@ void kernel(
 	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
-	task1<int_t<CHANNEL>>(in, conv0_weight, threshold0, conv_wi, conv_thr, even_buf, odd_buf);
-	task2<int_t<CHANNEL>>(conv1_weight, threshold1, conv_wi, conv_thr, odd_buf, even_buf);
-	task3<int_t<CHANNEL>>(conv_thr, conv_thr, even_buf, odd_buf);
-	task4<int_t<CHANNEL>>(matmul0_weight, mat_wi, odd_buf, even_buf);
-	task5<int_t<CHANNEL>>(out, mat_wi, even_buf);
+	task1<int_t<CHANNEL>>(even_buf, odd_buf, in, conv0_weight, threshold0, conv_wi, conv_thr);
+	task2<int_t<CHANNEL>>(odd_buf, even_buf, conv1_weight, threshold1, conv_wi, conv_thr);
+	task3<int_t<CHANNEL>>(even_buf, odd_buf, conv_thr, conv_thr);
+	task4<int_t<CHANNEL>>(odd_buf, even_buf, matmul0_weight, mat_wi);
+	task5<int_t<CHANNEL>>(even_buf, out, mat_wi);
 }
