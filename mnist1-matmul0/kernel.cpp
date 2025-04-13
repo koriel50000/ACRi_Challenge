@@ -169,18 +169,26 @@ void read_input(const int in[H * W * C], T inb[]) {
 	}
 }
 
+using data_t = int_t<CHANNEL>;
+using block_data_t = data_t[HEIGHT * WIDTH];
+using win_t = hls::vector<data_t, KERNEL * KERNEL>;
+template <typename T>
+using sob = hls::stream_of_blocks<T>;
+
+Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
+
 void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=out
 
-	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
-	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
+	static block_data_t even_buf;
+	static block_data_t odd_buf;
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE] = {
+	static data_t mat_wi[CLASS * FLATTEN / CHUNK_SIZE] = {
 I64(0x0c00000000000000), I64(0x0000c00cccc00000), I64(0xc0cc0040c4c004c0), I64(0xc0ccc400c4c0c4cc),
 I64(0x4c04000000400c00), I64(0x000000004c400000), I64(0x0c000c0c00000c00), I64(0x000000c400000000),
 I64(0x00040cc000400000), I64(0x000000c44c040004), I64(0xc00000c00c000000), I64(0x00000c004c004000),
@@ -224,8 +232,6 @@ I64(0x00cc0c0c0000c400), I64(0xc0c0c40004c00cc0), I64(0x0040000000400004), I64(0
 	};
 #pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
-	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
-
-	read_input<4,4,16,int_t<16>>(in, even_buf);
+	read_input<4,4,16,data_t>(in, even_buf);
 	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
