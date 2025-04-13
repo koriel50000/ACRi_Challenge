@@ -447,7 +447,7 @@ void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], c
 
 void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
 #pragma HLS stable variable=in_buf
-#pragma HLS stable variable=wight
+#pragma HLS stable variable=weight
 #pragma HLS stable variable=threshold
 
 	fifo<data_t> pips("pipe_fifo");
@@ -472,7 +472,7 @@ void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], c
 
 void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
 #pragma HLS stable variable=in_buf
-#pragma HLS stable variable=wight
+#pragma HLS stable variable=weight
 	
 	fifo<data_t> pips("pipe_fifo");
 
