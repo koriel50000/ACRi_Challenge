@@ -197,6 +197,28 @@ class Conv2D {
 private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
+	public:
+	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
+		int ptr = 0;
+		for (int j = 0; j < F; j++) {
+			if (j >= f) break;
+			for (int k = 0; k < KN * KN; k++) {
+#pragma HLS pipeline
+				T val;
+				for (int i = 0; i < C; i++) {
+#pragma HLS unroll
+					if (i >= c) break;
+					val[i] = (weight[ptr++] << 2) & 0xf;
+				}
+				wi[j * KN * KN + k] = val;
+			}
+		}
+
+		for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
+			thr[i] = threshold[i];
+		}
+	}
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
@@ -254,38 +276,6 @@ private:
 				outb[y * WIDTH + x] = oval;
 			}
 		}
-	}
-public:
-	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
-		int ptr = 0;
-		for (int j = 0; j < F; j++) {
-			if (j >= f) break;
-			for (int k = 0; k < KN * KN; k++) {
-#pragma HLS pipeline
-				T val;
-				for (int i = 0; i < C; i++) {
-#pragma HLS unroll
-					if (i >= c) break;
-					val[i] = (weight[ptr++] << 2) & 0xf;
-				}
-				wi[j * KN * KN + k] = val;
-			}
-		}
-
-		for (int i = 0; i < THRESHOLD; i++) {
-#pragma HLS unroll
-			thr[i] = threshold[i];
-		}
-	}
-
-	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
-		const T inb[], T outb[])
-	{
-		fifo<WT> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		windowize(h, w, inb, pips);
-		conv(h, w, c, f, wi, thr, outb, pips);
 	}
 };
 
@@ -346,6 +336,8 @@ void kernel(
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 
+	fifo<hls::vector<int_t<CHANNEL>,KERNEL*KERNEL>> pips("pipe_fifo");
+
 #pragma HLS dataflow
 #pragma HLS stable variable=in
 #pragma HLS stable variable=conv0_weight
@@ -353,6 +345,7 @@ void kernel(
 #pragma HLS stable variable=out
 	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
 	conv.read(1, 16, conv0_weight, threshold0, conv_wi, conv_thr);
-	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
+	conv.windowize(28, 28, even_buf, pips);
+	conv.conv(28, 28, 1, 16, conv_wi, conv_thr, odd_buf, pips);
 	write_result<24,24,16,int_t<CHANNEL>>(out, odd_buf);
 }
