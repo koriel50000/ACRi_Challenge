@@ -13,6 +13,8 @@
 #include <hls_streamofblocks.h>
 #include <hls_vector.h>
 
+#define I4(i) int_t<16>(i)
+
 const int WIDTH = 28;
 const int HEIGHT = 28;
 const int CHANNEL = 16;
