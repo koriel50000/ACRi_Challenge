@@ -28,9 +28,8 @@ using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
 class int_t {
-private:
-	ap_uint<W*N> buf_;
 public:
+	ap_uint<W*N> buf_;
 	int_t() : buf_(0) {}
 	int_t(int i) : buf_(i) {}
 	int_t(unsigned int ui) : buf_(ui) {}
@@ -223,7 +222,7 @@ private:
 		for (int j = 0; j < F; j++) {
 			for (int k = 0; k < KERNEL * KERNEL; k++) {
 				T val = wi[ptr++];
-				printf("I64(0x%016lx), ", val.buf_.to_long());
+				printf("I4(0x%01lx), ", val.buf_.to_long());
 			}
 			printf("\n");
 		}
