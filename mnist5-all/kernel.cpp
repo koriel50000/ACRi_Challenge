@@ -11,6 +11,7 @@
 #include <hls_math.h>
 #include <hls_stream.h>
 #include <hls_streamofblocks.h>
+#include <hls_task.h>
 #include <hls_vector.h>
 
 const int WIDTH = 28;
@@ -201,6 +202,28 @@ class Conv2D {
 private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
+public:
+	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
+		int ptr = 0;
+		for (int j = 0; j < F; j++) {
+			if (j >= f) break;
+			for (int k = 0; k < KN * KN; k++) {
+#pragma HLS pipeline
+				T val;
+				for (int i = 0; i < C; i++) {
+#pragma HLS unroll
+					if (i >= c) break;
+					val[i] = (weight[ptr++] << 2) & 0xf;
+				}
+				wi[j * KN * KN + k] = val;
+			}
+		}
+
+		for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
+			thr[i] = threshold[i];
+		}
+	}
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
@@ -259,38 +282,6 @@ private:
 			}
 		}
 	}
-public:
-	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
-		int ptr = 0;
-		for (int j = 0; j < F; j++) {
-			if (j >= f) break;
-			for (int k = 0; k < KN * KN; k++) {
-#pragma HLS pipeline
-				T val;
-				for (int i = 0; i < C; i++) {
-#pragma HLS unroll
-					if (i >= c) break;
-					val[i] = (weight[ptr++] << 2) & 0xf;
-				}
-				wi[j * KN * KN + k] = val;
-			}
-		}
-
-		for (int i = 0; i < THRESHOLD; i++) {
-#pragma HLS unroll
-			thr[i] = threshold[i];
-		}
-	}
-
-	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
-		const T inb[], T outb[])
-	{
-		fifo<WT> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		windowize(h, w, inb, pips);
-		conv(h, w, c, f, wi, thr, outb, pips);
-	}
 };
 
 template <int H, int W, int C>
@@ -305,7 +296,7 @@ private:
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
-
+public:
 	void compute_h(const int h, const int w, const int c, const T inb[], fifo<T>& pips) {
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
@@ -343,15 +334,6 @@ private:
 			}
 		}
 	}
-
-public:
-	void compute(const int h, const int w, const int c, const T inb[], T outb[]) {
-		fifo<T> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		compute_h(h, w, c, inb, pips);
-		compute_v(h / 2, w / 2, c, outb, pips);
-	}
 };
 
 template <int CL, int FL, int K, int H, int W>
@@ -359,7 +341,21 @@ class Dense {
 private:
 	using IT = int_t<K>;
 	using OT = int_t<CL,16>;
-
+public:
+	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
+		int ptr = 0;
+		for (int i = 0; i < CL; i++) {
+#pragma HLS pipeline
+			for (int j = 0; j < FL / K; j++) {
+				for (int k = 0; k < K; k++) {
+#pragma HLS unroll
+					uint4_t val = (weight[ptr++] << 2) & 0xf;
+					mat[j * CL + i][k] = val;
+				}
+			}
+		}
+	}
+	
 	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
@@ -400,28 +396,6 @@ private:
 			out[i] = acc[i];
 		}
 	}
-public:
-	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
-		int ptr = 0;
-		for (int i = 0; i < CL; i++) {
-#pragma HLS pipeline
-			for (int j = 0; j < FL / K; j++) {
-				for (int k = 0; k < K; k++) {
-#pragma HLS unroll
-					uint4_t val = (weight[ptr++] << 2) & 0xf;
-					mat[j * CL + i][k] = val;
-				}
-			}
-		}
-	}
-
-	void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], const IT inb[]) {
-		fifo<OT> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		flatten(mat, inb, pips);
-		write_result(out, pips);
-	}
 };
 
 template <int H, int W, int C, typename T>
@@ -449,37 +423,52 @@ Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-void task1(const int in[], block_data_t out_buf, const int weight[], const int threshold[], T wi[], int thr[]) {
+void task1(const int in[], block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, out_buf);
 	conv.read(1, 16, weight, threshold, wi, thr);
 }
 
-void task2(const block_data_t in_buf, block_data out_buf, const data_t wi[], const int thr[]) {
+void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
+	fifo<WT> pips("pipe_fifo");
+
 #pragma HLS dataflow
-	conv.compute(28, 28, 1, 16, wi, thr, in_buf, out_buf);
+	conv.windowize(28, 28, in_buf, pips);
+	conv.conv(28, 28, 1, 16, wi, thr, out_buf, pips);
 }
 
 void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
+	fifo<T> pips("pipe_fifo");
+
 #pragma HLS dataflow
-	maxpool.compute(24, 24, 16, in_buf, out_buf);
+	maxpool.compute_h(24, 24, 16, in_buf, pips);
+	maxpool.compute_v(12, 12, 16, out_buf, pips);
 	conv.read(16, 16, weight, threshold, wi, thr);
 }
 
 void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
+fifo<WT> pips("pipe_fifo");
+
 #pragma HLS dataflow
-	conv.compute(12, 12, 16, 16, wi, thr, in_buf, out_buf);
+	conv.windowize(12, 12, in_buf, pips);
+	conv.conv(12, 12, 16, 16, wi, thr, out_buf, pips);
 }
 
 void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
+	fifo<T> pips("pipe_fifo");
+
 #pragma HLS dataflow
-	maxpool.compute(8, 8, 16, in_buf, out_buf);
+	maxpool.compute_h(8, 8, 16, in_buf, pips);
+	maxpool.compute_v(4, 4, 16, out_buf, pips);
 	matmul0.read(weight, wi);
 }
 
 void task6(const block_data_t in_buf, int out[], const data_t wi[]) {
+	fifo<OT> pips("pipe_fifo");
+
 #pragma HLS dataflow
-	matmul0.compute_and_write_result(out, wi, in_buf);
+		matmul0.flatten(wi, in_buf, pips);
+		matmul0.write_result(out, pips);
 }
 
 void kernel(
