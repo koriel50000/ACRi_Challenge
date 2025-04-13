@@ -7,14 +7,14 @@
  * ・ダブルバッファリングで演算結果を一時保存
  */
 #include "kernel.hpp"
-#include <stdint.h>
 #include <ap_int.h>
 #include <hls_math.h>
 #include <hls_stream.h>
+#include <hls_streamofblocks.h>
 #include <hls_vector.h>
 
-const int WIDTH = 32;
-const int HEIGHT = 32;
+const int WIDTH = 28;
+const int HEIGHT = 28;
 const int CHANNEL = 16;
 const int FILTER = 16;
 
@@ -208,7 +208,7 @@ private:
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 			if (i >= (w + PD) * (h + PD * 2) + PD) break;
 			T val;
 			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
@@ -247,7 +247,7 @@ private:
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
@@ -310,7 +310,7 @@ private:
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 				if (x >= w) break;
 				T val1 = inb[y * WIDTH + x];
 				T val2 = inb[y * WIDTH + x + 1];
@@ -328,12 +328,12 @@ private:
 		for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 				if (x >= ow) break;
 				T val1 = buf[x];
 				T val2 = pips.read();
@@ -367,7 +367,7 @@ private:
 				IT vu = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
@@ -387,7 +387,7 @@ private:
 		}
 	
 		for (int j = 0; j < FL / K; j++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 			OT val = pips.read();
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
@@ -440,41 +440,45 @@ void read_input(const int in[H * W * C], T inb[]) {
 	}
 }
 
+using data_t = int_t<CHANNEL>;
+using block_data_t = data_t[HEIGHT * WIDTH];
+template <typename T>
+using sob = hls::stream_of_blocks<T>;
+
 Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-template <typename T>
-void task1(T in_buf[], T out_buf[], const int in[], const int weight[], const int threshold[], T wi[], int thr[]) {
+void task1(const int in[], block_data_t out_buf, const int weight[], const int threshold[], T wi[], int thr[]) {
 #pragma HLS dataflow
-	read_input<28,28,1,T>(in, in_buf);
+	read_input<28,28,1,data_t>(in, out_buf);
 	conv.read(1, 16, weight, threshold, wi, thr);
+}
+
+void task2(const block_data_t in_buf, block_data out_buf, const data_t wi[], const int thr[]) {
+#pragma HLS dataflow
 	conv.compute(28, 28, 1, 16, wi, thr, in_buf, out_buf);
 }
 
-template <typename T>
-void task2(const T in_buf[], T out_buf[], const int weight[], const int threshold[], T wi[], int thr[]) {
+void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
 #pragma HLS dataflow
 	maxpool.compute(24, 24, 16, in_buf, out_buf);
 	conv.read(16, 16, weight, threshold, wi, thr);
 }
 
-template <typename T>
-void task3(const T in_buf[], T out_buf[], const T wi[], const int thr[]) {
+void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
 #pragma HLS dataflow
 	conv.compute(12, 12, 16, 16, wi, thr, in_buf, out_buf);
 }
 
-template <typename T>
-void task4(const T in_buf[], T out_buf[], const int weight[], T wi[]) {
-#pragma HLS dataflow	
+void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
+#pragma HLS dataflow
 	maxpool.compute(8, 8, 16, in_buf, out_buf);
 	matmul0.read(weight, wi);
 }
 
-template <typename T>
-void task5(const T in_buf[], int out[], const T wi[]) {
-#pragma HLS dataflow	
+void task6(const block_data_t in_buf, int out[], const data_t wi[]) {
+#pragma HLS dataflow
 	matmul0.compute_and_write_result(out, wi, in_buf);
 }
 
@@ -500,22 +504,23 @@ void kernel(
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
 #pragma HLS array_partition variable=out
 
-	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
-	static int_t<CHANNEL> odd_buf[HEIGHT * WIDTH];
+	static block_data_t even_buf;
+	static block_data_t odd_buf;
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	static int_t<CHANNEL> conv_wi[FILTER * KERNEL * KERNEL];
+	static data_t conv_wi[FILTER * KERNEL * KERNEL];
 	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
 #pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv_thr
 
-	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
+	static data_t mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
-	task1<int_t<CHANNEL>>(even_buf, odd_buf, in, conv0_weight, threshold0, conv_wi, conv_thr);
-	task2<int_t<CHANNEL>>(odd_buf, even_buf, conv1_weight, threshold1, conv_wi, conv_thr);
-	task3<int_t<CHANNEL>>(even_buf, odd_buf, conv_wi, conv_thr);
-	task4<int_t<CHANNEL>>(odd_buf, even_buf, matmul0_weight, mat_wi);
-	task5<int_t<CHANNEL>>(even_buf, out, mat_wi);
+	task1(in, even_buf, conv0_weight, threshold0, conv_wi, conv_thr);
+	task2(even_buf, odd_buf, conv_wi, conv_thr);
+	task3(odd_buf, even_buf, conv1_weight, threshold1, conv_wi, conv_thr);
+	task4(even_buf, odd_buf, conv_wi, conv_thr);
+	task5(odd_buf, even_buf, matmul0_weight, mat_wi);
+	task6(even_buf, out, mat_wi);
 }
