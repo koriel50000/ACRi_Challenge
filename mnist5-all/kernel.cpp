@@ -515,7 +515,7 @@ void kernel(
 
 	task1<int_t<CHANNEL>>(even_buf, odd_buf, in, conv0_weight, threshold0, conv_wi, conv_thr);
 	task2<int_t<CHANNEL>>(odd_buf, even_buf, conv1_weight, threshold1, conv_wi, conv_thr);
-	task3<int_t<CHANNEL>>(even_buf, odd_buf, conv_thr, conv_thr);
+	task3<int_t<CHANNEL>>(even_buf, odd_buf, conv_wi, conv_thr);
 	task4<int_t<CHANNEL>>(odd_buf, even_buf, matmul0_weight, mat_wi);
 	task5<int_t<CHANNEL>>(even_buf, out, mat_wi);
 }
