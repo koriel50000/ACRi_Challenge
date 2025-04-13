@@ -346,6 +346,11 @@ void kernel(
 
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 
+#pragma HLS dataflow
+#pragma HLS stable variable=in
+#pragma HLS stable variable=conv0_weight
+#pragma HLS stable variable=threshold0
+#pragma HLS stable variable=out
 	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
 	conv.read(1, 16, conv0_weight, threshold0, conv_wi, conv_thr);
 	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
