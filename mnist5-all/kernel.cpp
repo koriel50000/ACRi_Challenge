@@ -11,7 +11,6 @@
 #include <hls_math.h>
 #include <hls_stream.h>
 #include <hls_streamofblocks.h>
-#include <hls_task.h>
 #include <hls_vector.h>
 
 const int WIDTH = 28;
