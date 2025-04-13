@@ -13,6 +13,8 @@
 #include <hls_stream.h>
 #include <hls_vector.h>
 
+#define I64(i) int_t<16>({ (i >> 0) & 0xf, (i >> 4) & 0xf, (i >> 8) & 0xf, (i >> 12) & 0xf, (i >> 16) & 0xf, (i >> 20) & 0xf, (i >> 24) & 0xf, (i >> 28) & 0xf, (i >> 32) & 0xf, (i >> 36) & 0xf, (i >> 40) & 0xf, (i >> 44) & 0xf, (i >> 48) & 0xf, (i >> 52) & 0xf, (i >> 56) & 0xf, (i >> 60) & 0xf, })
+
 const int WIDTH = 32;
 const int HEIGHT = 32;
 const int CHANNEL = 16;
@@ -32,9 +34,9 @@ using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
 class int_t {
-private:
-	ap_uint<W*N> buf_;
 public:
+	ap_uint<W*N> buf_;
+
 	int_t() : buf_(0) {}
 	int_t(int i) : buf_(i) {}
 	int_t(unsigned int ui) : buf_(ui) {}
@@ -153,6 +155,14 @@ public:
 					mat[j * CL + i][k] = val;
 				}
 			}
+		}
+		ptr = 0;
+		for (int j = 0; j < 10 * 4; j++) {
+			for (int i = 0; i < 4; i++) {
+				IT val = mat[ptr++];
+				printf("I64(0x%016x), ", val.buf_.to_long());
+			}
+			printf("\n");
 		}
 	}
 
