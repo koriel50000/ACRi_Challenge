@@ -424,70 +424,84 @@ MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
 void task1(const int in[], block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
+#pragma HLS dataflow
 #pragma HLS stable variable=in
+#pragma HLS stable variable=out_buf
 #pragma HLS stable variable=weight
 #pragma HLS stable variable=threshold
+#pragma HLS stable variable=wi
+#pragma HLS stable variable=thr
 	
-#pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, out_buf);
 	conv.read(1, 16, weight, threshold, wi, thr);
 }
 
 void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
+#pragma HLS dataflow
 #pragma HLS stable variable=in_buf
+#pragma HLS stable variable=out_buf
 #pragma HLS stable variable=wi
 #pragma HLS stable variable=thr
 
 	fifo<win_t> pips("pipe_fifo");
 
-#pragma HLS dataflow
 	conv.windowize(28, 28, in_buf, pips);
 	conv.conv(28, 28, 1, 16, wi, thr, out_buf, pips);
 }
 
 void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
+#pragma HLS dataflow
 #pragma HLS stable variable=in_buf
+#pragma HLS stable variable=out_buf
 #pragma HLS stable variable=weight
 #pragma HLS stable variable=threshold
+#pragma HLS stable variable=wi
+#pragma HLS stable variable=thr
 
 	fifo<data_t> pips("pipe_fifo");
 
-#pragma HLS dataflow
 	maxpool.compute_h(24, 24, 16, in_buf, pips);
 	maxpool.compute_v(12, 12, 16, out_buf, pips);
 	conv.read(16, 16, weight, threshold, wi, thr);
 }
 
 void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
+#pragma HLS dataflow
 #pragma HLS stable variable=in_buf
+#pragma HLS stable variable=out_buf
 #pragma HLS stable variable=wi
 #pragma HLS stable variable=thr
 	
 	fifo<win_t> pips("pipe_fifo");
 
-#pragma HLS dataflow
 	conv.windowize(12, 12, in_buf, pips);
 	conv.conv(12, 12, 16, 16, wi, thr, out_buf, pips);
 }
 
 void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
+#pragma HLS dataflow
 #pragma HLS stable variable=in_buf
+#pragma HLS stable variable=out_buf
 #pragma HLS stable variable=weight
+#pragma HLS stable variable=wi
 	
 	fifo<data_t> pips("pipe_fifo");
 
-#pragma HLS dataflow
 	maxpool.compute_h(8, 8, 16, in_buf, pips);
 	maxpool.compute_v(4, 4, 16, out_buf, pips);
 	matmul0.read(weight, wi);
 }
 
 void task6(const block_data_t in_buf, int out[], const data_t wi[]) {
+#pragma HLS dataflow
+#pragma HLS stable variable=in_buf
+#pragma HLS stable variable=out
+#pragma HLS stable variable=wi
+
 	fifo<int_t<10,16>> pips("pipe_fifo");
 
-#pragma HLS dataflow
-		matmul0.flatten(wi, in_buf, pips);
-		matmul0.write_result(out, pips);
+	matmul0.flatten(wi, in_buf, pips);
+	matmul0.write_result(out, pips);
 }
 
 void kernel(
