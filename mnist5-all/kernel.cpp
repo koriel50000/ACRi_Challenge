@@ -440,6 +440,44 @@ void read_input(const int in[H * W * C], T inb[]) {
 	}
 }
 
+Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
+MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
+
+template <typename T>
+void task1(T in_buf[], T out_buf[], const int in[], const int weight[], const int threshold[], T wi[], int thr[]) {
+#pragma HLS dataflow
+	read_input<28,28,1,T>(in, in_buf);
+	conv.read(1, 16, weight, threshold, wi, thr);
+	conv.compute(28, 28, 1, 16, wi, thr, in_buf, out_buf);
+}
+
+template <typename T>
+void task2(const T in_buf[], T out_buf[], const int weight[], const int threshold[], T wi[], int thr[]) {
+#pragma HLS dataflow
+	maxpool.compute(24, 24, 16, in_buf, out_buf);
+	conv.read(16, 16, weight, threshold, wi, thr);
+}
+
+template <typename T>
+void task3(const T in_buf[], T out_buf[], const T wi[], const int thr[]) {
+#pragma HLS dataflow
+	conv.compute(12, 12, 16, 16, wi, thr, in_buf, out_buf);
+}
+
+template <typename T>
+void task4(const T in_buf[], T out_buf[], const int weight[], T wi[]) {
+#pragma HLS dataflow	
+	maxpool.compute(8, 8, 16, in_buf, out_buf);
+	matmul0.read(weight, wi);
+}
+
+template <typename T>
+void task5(const T in_buf[], int out[], const T wi[]) {
+#pragma HLS dataflow	
+	matmul0.compute_and_write_result(out, wi, in_buf);
+}
+
 void kernel(
 	int in[28 * 28 * 1],
 	int conv0_weight[16 * 5 * 5 * 1],
@@ -475,22 +513,9 @@ void kernel(
 	static int_t<CHUNK_SIZE> mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
-	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
-
-	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
-
-	conv.read(1, 16, conv0_weight, threshold0, conv_wi, conv_thr);
-	conv.compute(28, 28, 1, 16, conv_wi, conv_thr, even_buf, odd_buf);
-
-	maxpool.compute(24, 24, 16, odd_buf, even_buf);
-
-	conv.read(16, 16, conv1_weight, threshold1, conv_wi, conv_thr);
-	conv.compute(12, 12, 16, 16, conv_wi, conv_thr, even_buf, odd_buf);
-
-	maxpool.compute(8, 8, 16, odd_buf, even_buf);
-
-	matmul0.read(matmul0_weight, mat_wi);
-	matmul0.compute_and_write_result(out, mat_wi, even_buf);
+	task1<int_t<CHANNEL>>(in, conv0_weight, threshold0, conv_wi, conv_thr, even_buf, odd_buf);
+	task2<int_t<CHANNEL>>(conv1_weight, threshold1, conv_wi, conv_thr, odd_buf, even_buf);
+	task3<int_t<CHANNEL>>(conv_thr, conv_thr, even_buf, odd_buf);
+	task4<int_t<CHANNEL>>(matmul0_weight, mat_wi, odd_buf, even_buf);
+	task5<int_t<CHANNEL>>(out, mat_wi, even_buf);
 }
