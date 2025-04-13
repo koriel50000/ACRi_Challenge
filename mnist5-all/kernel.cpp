@@ -203,28 +203,6 @@ class Conv2D {
 private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
-public:
-	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
-		int ptr = 0;
-		for (int j = 0; j < F; j++) {
-			if (j >= f) break;
-			for (int k = 0; k < KN * KN; k++) {
-#pragma HLS pipeline
-				T val;
-				for (int i = 0; i < C; i++) {
-#pragma HLS unroll
-					if (i >= c) break;
-					val[i] = (weight[ptr++] << 2) & 0xf;
-				}
-				wi[j * KN * KN + k] = val;
-			}
-		}
-
-		for (int i = 0; i < THRESHOLD; i++) {
-#pragma HLS unroll
-			thr[i] = threshold[i];
-		}
-	}
 
 	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
@@ -232,7 +210,7 @@ public:
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			if (i >= (w + PD) * (h + PD * 2) + PD) break;
 			T val;
 			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
@@ -271,7 +249,7 @@ public:
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
@@ -282,6 +260,38 @@ public:
 				outb[y * WIDTH + x] = oval;
 			}
 		}
+	}
+public:
+	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
+		int ptr = 0;
+		for (int j = 0; j < F; j++) {
+			if (j >= f) break;
+			for (int k = 0; k < KN * KN; k++) {
+#pragma HLS pipeline
+				T val;
+				for (int i = 0; i < C; i++) {
+#pragma HLS unroll
+					if (i >= c) break;
+					val[i] = (weight[ptr++] << 2) & 0xf;
+				}
+				wi[j * KN * KN + k] = val;
+			}
+		}
+
+		for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
+			thr[i] = threshold[i];
+		}
+	}
+
+	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
+		const T inb[], T outb[])
+	{
+		fifo<WT> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		windowize(h, w, inb, pips);
+		conv(h, w, c, f, wi, thr, outb, pips);
 	}
 };
 
@@ -297,12 +307,12 @@ private:
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
-public:
+
 	void compute_h(const int h, const int w, const int c, const T inb[], fifo<T>& pips) {
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= w) break;
 				T val1 = inb[y * WIDTH + x];
 				T val2 = inb[y * WIDTH + x + 1];
@@ -320,12 +330,12 @@ public:
 		for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= ow) break;
 				T val1 = buf[x];
 				T val2 = pips.read();
@@ -335,6 +345,15 @@ public:
 			}
 		}
 	}
+
+public:
+	void compute(const int h, const int w, const int c, const T inb[], T outb[]) {
+		fifo<T> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		compute_h(h, w, c, inb, pips);
+		compute_v(h / 2, w / 2, c, outb, pips);
+	}
 };
 
 template <int CL, int FL, int K, int H, int W>
@@ -342,21 +361,7 @@ class Dense {
 private:
 	using IT = int_t<K>;
 	using OT = int_t<CL,16>;
-public:
-	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
-		int ptr = 0;
-		for (int i = 0; i < CL; i++) {
-#pragma HLS pipeline
-			for (int j = 0; j < FL / K; j++) {
-				for (int k = 0; k < K; k++) {
-#pragma HLS unroll
-					uint4_t val = (weight[ptr++] << 2) & 0xf;
-					mat[j * CL + i][k] = val;
-				}
-			}
-		}
-	}
-	
+
 	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
@@ -364,7 +369,7 @@ public:
 				IT vu = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
@@ -384,7 +389,7 @@ public:
 		}
 	
 		for (int j = 0; j < FL / K; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			OT val = pips.read();
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
@@ -396,6 +401,28 @@ public:
 #pragma HLS unroll
 			out[i] = acc[i];
 		}
+	}
+public:
+	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
+		int ptr = 0;
+		for (int i = 0; i < CL; i++) {
+#pragma HLS pipeline
+			for (int j = 0; j < FL / K; j++) {
+				for (int k = 0; k < K; k++) {
+#pragma HLS unroll
+					uint4_t val = (weight[ptr++] << 2) & 0xf;
+					mat[j * CL + i][k] = val;
+				}
+			}
+		}
+	}
+
+	void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], const IT inb[]) {
+		fifo<OT> pips("pipe_fifo");
+
+#pragma HLS dataflow
+		flatten(mat, inb, pips);
+		write_result(out, pips);
 	}
 };
 
@@ -421,91 +448,6 @@ using win_t = hls::vector<data_t, KERNEL * KERNEL>;
 template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
-Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
-MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
-Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
-
-void task1(const int in[], block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
-#pragma HLS dataflow
-#pragma HLS stable variable=in
-#pragma HLS stable variable=out_buf
-#pragma HLS stable variable=weight
-#pragma HLS stable variable=threshold
-#pragma HLS stable variable=wi
-#pragma HLS stable variable=thr
-	
-	read_input<28,28,1,data_t>(in, out_buf);
-	conv.read(1, 16, weight, threshold, wi, thr);
-}
-
-void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-#pragma HLS dataflow
-#pragma HLS stable variable=in_buf
-#pragma HLS stable variable=out_buf
-#pragma HLS stable variable=wi
-#pragma HLS stable variable=thr
-
-	fifo<win_t> pips("pipe_fifo");
-
-	conv.windowize(28, 28, in_buf, pips);
-	conv.conv(28, 28, 1, 16, wi, thr, out_buf, pips);
-}
-
-void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
-#pragma HLS dataflow
-#pragma HLS stable variable=in_buf
-#pragma HLS stable variable=out_buf
-#pragma HLS stable variable=weight
-#pragma HLS stable variable=threshold
-#pragma HLS stable variable=wi
-#pragma HLS stable variable=thr
-
-	fifo<data_t> pips("pipe_fifo");
-
-	maxpool.compute_h(24, 24, 16, in_buf, pips);
-	maxpool.compute_v(12, 12, 16, out_buf, pips);
-	conv.read(16, 16, weight, threshold, wi, thr);
-}
-
-void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-#pragma HLS dataflow
-#pragma HLS stable variable=in_buf
-#pragma HLS stable variable=out_buf
-#pragma HLS stable variable=wi
-#pragma HLS stable variable=thr
-	
-	fifo<win_t> pips("pipe_fifo");
-
-	conv.windowize(12, 12, in_buf, pips);
-	conv.conv(12, 12, 16, 16, wi, thr, out_buf, pips);
-}
-
-void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
-#pragma HLS dataflow
-#pragma HLS stable variable=in_buf
-#pragma HLS stable variable=out_buf
-#pragma HLS stable variable=weight
-#pragma HLS stable variable=wi
-	
-	fifo<data_t> pips("pipe_fifo");
-
-	maxpool.compute_h(8, 8, 16, in_buf, pips);
-	maxpool.compute_v(4, 4, 16, out_buf, pips);
-	matmul0.read(weight, wi);
-}
-
-void task6(const block_data_t in_buf, int out[], const data_t wi[]) {
-#pragma HLS dataflow
-#pragma HLS stable variable=in_buf
-#pragma HLS stable variable=out
-#pragma HLS stable variable=wi
-
-	fifo<int_t<10,16>> pips("pipe_fifo");
-
-	matmul0.flatten(wi, in_buf, pips);
-	matmul0.write_result(out, pips);
-}
-
 void kernel(
 	int in[28 * 28 * 1],
 	int conv0_weight[16 * 5 * 5 * 1],
@@ -516,37 +458,49 @@ void kernel(
 	int out[10])
 {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=conv0_weight
-#pragma HLS interface axis port=threshold0
-#pragma HLS interface axis port=conv1_weight
-#pragma HLS interface axis port=threshold1
-#pragma HLS interface axis port=matmul0_weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=16
 #pragma HLS array_partition variable=conv0_weight cyclic factor=25
-#pragma HLS array_partition variable=threshold0
+#pragma HLS array_partition variable=threshold0 cyclic factor=3
 #pragma HLS array_partition variable=conv1_weight cyclic factor=16
-#pragma HLS array_partition variable=threshold1
+#pragma HLS array_partition variable=threshold1 cyclic factor=3
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
-#pragma HLS array_partition variable=out
+#pragma HLS array_partition variable=out cyclic factor=10
 
 	static block_data_t even_buf;
 	static block_data_t odd_buf;
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 
-	static data_t conv_wi[FILTER * KERNEL * KERNEL];
-	static int conv_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
-#pragma HLS array_partition variable=conv_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=conv_thr
+	static data_t conv0_wi[FILTER * KERNEL * KERNEL];
+	static int conv0_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
+#pragma HLS array_partition variable=conv0_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=conv0_thr
+
+	static data_t conv1_wi[FILTER * KERNEL * KERNEL];
+	static int conv1_thr[7] = { 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff, 0x7fff };
+#pragma HLS array_partition variable=conv1_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=conv1_thr
 
 	static data_t mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
+#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
-	task1(in, even_buf, conv0_weight, threshold0, conv_wi, conv_thr);
-	task2(even_buf, odd_buf, conv_wi, conv_thr);
-	task3(odd_buf, even_buf, conv1_weight, threshold1, conv_wi, conv_thr);
-	task4(even_buf, odd_buf, conv_wi, conv_thr);
-	task5(odd_buf, even_buf, matmul0_weight, mat_wi);
-	task6(even_buf, out, mat_wi);
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
+
+	read_input<28,28,1,data_t>(in, even_buf);
+
+	conv.read(1, 16, conv0_weight, threshold0, conv0_wi, conv0_thr);
+	conv.compute(28, 28, 1, 16, conv0_wi, conv0_thr, even_buf, odd_buf);
+
+	maxpool.compute(24, 24, 16, odd_buf, even_buf);
+
+	conv.read(16, 16, conv1_weight, threshold1, conv1_wi, conv1_thr);
+	conv.compute(12, 12, 16, 16, conv1_wi, conv1_thr, even_buf, odd_buf);
+
+	maxpool.compute(8, 8, 16, odd_buf, even_buf);
+
+	matmul0.read(matmul0_weight, mat_wi);
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
