@@ -424,12 +424,20 @@ MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
 void task1(const int in[], block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
+#pragma HLS stable variable=in
+#pragma HLS stable variable=weight
+#pragma HLS stable variable=threshold
+	
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, out_buf);
 	conv.read(1, 16, weight, threshold, wi, thr);
 }
 
 void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
+#pragma HLS stable variable=in_buf
+#pragma HLS stable variable=wi
+#pragma HLS stable variable=thr
+
 	fifo<win_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -438,6 +446,10 @@ void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], c
 }
 
 void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], const int threshold[], data_t wi[], int thr[]) {
+#pragma HLS stable variable=in_buf
+#pragma HLS stable variable=wight
+#pragma HLS stable variable=threshold
+
 	fifo<data_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -447,7 +459,11 @@ void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], 
 }
 
 void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-fifo<win_t> pips("pipe_fifo");
+#pragma HLS stable variable=in_buf
+#pragma HLS stable variable=wi
+#pragma HLS stable variable=thr
+	
+	fifo<win_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	conv.windowize(12, 12, in_buf, pips);
@@ -455,6 +471,9 @@ fifo<win_t> pips("pipe_fifo");
 }
 
 void task5(const block_data_t in_buf, block_data_t out_buf, const int weight[], data_t wi[]) {
+#pragma HLS stable variable=in_buf
+#pragma HLS stable variable=wight
+	
 	fifo<data_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -492,13 +511,6 @@ void kernel(
 #pragma HLS array_partition variable=threshold1
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
 #pragma HLS array_partition variable=out
-#pragma HLS stable variable=in
-#pragma HLS stable variable=conv0_weight
-#pragma HLS stable variable=threshold0
-#pragma HLS stable variable=conv1_weight
-#pragma HLS stable variable=threshold1
-#pragma HLS stable variable=matmul0_weight
-#pragma HLS stable variable=out
 
 	static block_data_t even_buf;
 	static block_data_t odd_buf;
