@@ -296,11 +296,8 @@ void kernel(
 	int out[24 * 24 * 16])
 {
 #pragma HLS interface axis port=in
-#pragma HLS interface axis port=conv0_weight
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=28
-#pragma HLS array_partition variable=conv0_weight cyclic factor=25
-#pragma HLS array_partition variable=threshold0
 #pragma HLS array_partition variable=out cyclic factor=16
 
 	static int_t<CHANNEL> even_buf[HEIGHT * WIDTH];
@@ -340,7 +337,6 @@ I4(0xc), I4(0xc), I4(0x0), I4(0xc), I4(0x0), I4(0xc), I4(0xc), I4(0x0), I4(0xc),
 #pragma HLS stable variable=threshold0
 #pragma HLS stable variable=out
 	read_input<28,28,1,int_t<CHANNEL>>(in, even_buf);
-	conv.read(1, 16, conv0_weight, threshold0, conv_wi, conv_thr);
 	conv.windowize(28, 28, even_buf, pips);
 	conv.conv(28, 28, 1, 16, conv_wi, conv_thr, odd_buf, pips);
 	write_result<24,24,16,int_t<CHANNEL>>(out, odd_buf);
