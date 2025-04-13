@@ -415,6 +415,7 @@ void read_input(const int in[H * W * C], T inb[]) {
 
 using data_t = int_t<CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH];
+using win_t = hls::vector<data_t, KERNEL * KERNEL>;
 template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
@@ -429,7 +430,7 @@ void task1(const int in[], block_data_t out_buf, const int weight[], const int t
 }
 
 void task2(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-	fifo<hls::vector<data_t, KERNEL * KERNEL>> pips("pipe_fifo");
+	fifo<win_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	conv.windowize(28, 28, in_buf, pips);
@@ -446,7 +447,7 @@ void task3(const block_data_t in_buf, block_data_t out_buf, const int weight[], 
 }
 
 void task4(const block_data_t in_buf, block_data_t out_buf, const data_t wi[], const int thr[]) {
-fifo<hls::vector<data_t, KERNEL * KERNEL>> pips("pipe_fifo");
+fifo<win_t> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	conv.windowize(12, 12, in_buf, pips);
@@ -491,6 +492,13 @@ void kernel(
 #pragma HLS array_partition variable=threshold1
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
 #pragma HLS array_partition variable=out
+#pragma HLS stable variable=in
+#pragma HLS stable variable=conv0_weight
+#pragma HLS stable variable=threshold0
+#pragma HLS stable variable=conv1_weight
+#pragma HLS stable variable=threshold1
+#pragma HLS stable variable=matmul0_weight
+#pragma HLS stable variable=out
 
 	static block_data_t even_buf;
 	static block_data_t odd_buf;
