@@ -28,9 +28,8 @@ using fifo = hls::stream<T>;
 
 template <int N, int W = 4>
 class int_t {
-private:
-	ap_uint<W*N> buf_;
 public:
+	ap_uint<W*N> buf_;
 	int_t() : buf_(0) {}
 	int_t(int i) : buf_(i) {}
 	int_t(unsigned int ui) : buf_(ui) {}
@@ -276,6 +275,22 @@ public:
 #pragma HLS unroll
 			thr[i] = threshold[i];
 		}
+
+		ptr = 0;
+		for (int j = 0; j < F; j++) {
+			for (int y = 0; y < KERNEL * KERNEL; y++) {
+				for (int x = 0; x < KERNEL * KERNEL; x++) {
+					T val = wi[ptr++];
+					printf("I64(0x%016lx), ", val.buf_.to_long());
+				}
+			}
+			printf("\n");
+		}
+
+		for (int i = 0; i < THRESHOLD; i++) {
+			printf("%d ", thr[i]);
+		}
+		printf("\n");
 	}
 
 	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
