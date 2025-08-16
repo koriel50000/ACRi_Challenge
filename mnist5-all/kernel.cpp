@@ -56,8 +56,8 @@ public:
 	}
 };
 
-uint6_t mul66(const uint6_t i) {
-	static const uint6_t table[] = {
+uint8_t mul68(const uint6_t i) {
+	static const uint8_t table[] = {
 0, 1, 2, 4, 8, 16, 32, 64,
 0, 0, 0, 0, 0, 0, 0, 0,
 0, 0, 1, 1, 2, 4, 8, 16,
@@ -71,8 +71,8 @@ uint6_t mul66(const uint6_t i) {
 	return table[i];
 }
 
-int8_t mul(const uint4_t v, const uint4_t w) {
-	uint6_t oval = mul66((v(2, 0), w(2, 0)));
+int16_t mul(const uint4_t v, const uint4_t w) {
+	uint8_t oval = mul68((v(2, 0), w(2, 0)));
 	return (v[3] ^ w[3]) == 1 ? (-oval).to_int() : oval.to_int();
 }
 
