@@ -58,7 +58,6 @@ public:
 
 uint8_t mul68(const uint6_t i) {
 	static const uint8_t table[] = {
-0, 1, 2, 4, 8, 16, 32, 64,
 0, 0, 0, 0, 0, 0, 0, 0,
 0, 0, 1, 1, 2, 4, 8, 16,
 0, 1, 1, 2, 4, 8, 16, 32,
