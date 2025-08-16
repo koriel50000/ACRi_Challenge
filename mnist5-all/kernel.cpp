@@ -440,7 +440,7 @@ void read_input(const int in[H * W * C], T inb[]) {
 			T val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-				val[z] = in[ptr++] * 2 - 1;
+				val[z] = in[ptr++] * 8 - 4;
 			}
 			inb[y * WIDTH + x] = val;
 		}
