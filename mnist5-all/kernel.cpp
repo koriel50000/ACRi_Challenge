@@ -71,7 +71,7 @@ uint4_t mul64(const uint6_t i) {
 }
 
 int16_t mul(const uint4_t v, const uint4_t w) {
-	int16_t oval = mul64((v(2, 0), w(2, 0))) << ((w (1, 0) + 1) & (0 - w[2]));
+	int16_t oval = mul64((v(2, 0), w(2, 0))) << ((w(1, 0) + 1) & (0 - w[2]));
 	return (v[3] ^ w[3]) == 1 ? -oval : oval;
 }
 
