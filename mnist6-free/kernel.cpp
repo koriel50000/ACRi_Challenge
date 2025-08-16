@@ -483,10 +483,7 @@ private:
 		}
     	out[0] = m;
 	}
-}
-
-
-
+};
 
 public:
 	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
