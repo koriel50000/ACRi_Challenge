@@ -3,23 +3,22 @@
  * ・weightを1bit符号＋3bit指数部の4bitで表現(0,1,2,4,8,16,32,64,NA,-1,-2,-4,-8,-16,-32,-64) * scale
  * ・バッチ正規化後のactivationを1bit符号+2bit指数部+1bit仮数部の4bitで表現
  *   (0,0.25,0.5,0.75,1.0,1.5,2.0,3.0, NA,-0.25,-0.5,-0.75,-1.0,-1.5,-2.0,-3.0)
- * ・乗算は符号なし3bitの掛け算を、6入力LUTが6個のテーブル参照で計算?もしくはシフト?
+ * ・乗算は符号なし3bitの掛け算を、6入力LUTが4個のテーブル参照とシフトで計算
  * ・演算回路は最大サイズのConv,Maxpoolを用意し、引数で行列サイズを指定して再利用(ループをbreak?範囲外は0埋め?)
- * ・ダブルバッファリングで演算結果を一時保存
-
+ * ・conv0_wi,conv0_thr -> in -> conv1_wi,conv1_thr -> mat_wi の順にメインメモリからパラメータを転送
+ * ・ダブルバッファリングで、パラメータ転送中に演算して演算結果を一時保存
+ */
+/*
 -- CNV.py --
 class CNV(nn.Module):
 
-	def __init__(self, num_classes=10, weight_bit_width=2, act_bit_width=2, in_bit_width=1, in_channels=1):
+	def __init__(self, num_classes=10, weight_bit_width=4, act_bit_width=4, in_bit_width=1, in_channels=1):
 		super(CNV, self).__init__()
 
 		self.conv_features = nn.ModuleList()
 		self.linear_features = nn.ModuleList()
 
-		self.conv_features.append(bnn.QuantIdentity(act_quant=CommonInQuant, bit_width=in_bit_width))
-
-		self.conv_features.append(
-			bnn.QuantConv2d(
+		self.conv_features.append(qnn.QuantConv2d(
 			kernel_size=KERNEL_SIZE,
 			in_channels=in_channels,
 			out_channels=16,
@@ -27,14 +26,13 @@ class CNV(nn.Module):
 			weight_quant=CommonWeightQuant,
 			weight_bit_width=weight_bit_width))
 		self.conv_features.append(nn.BatchNorm2d(16, eps=1e-4))
-		self.conv_features.append(bnn.QuantReLU(
+		self.conv_features.append(qnn.QuantReLU(
 			act_quant=CommonActQuant,
-			bit_width=act_bit_width + 1,
+			bit_width=act_bit_width,
 			return_quant_tensor=True))
 		self.conv_features.append(nn.MaxPool2d(kernel_size=POOL_SIZE))
 
-		self.conv_features.append(
-			bnn.QuantConv2d(
+		self.conv_features.append(qnn.QuantConv2d(
 			kernel_size=KERNEL_SIZE,
 			in_channels=16,
 			out_channels=16,
@@ -42,14 +40,13 @@ class CNV(nn.Module):
 			weight_quant=CommonWeightQuant,
 			weight_bit_width=weight_bit_width))
 		self.conv_features.append(nn.BatchNorm2d(16, eps=1e-4))
-		self.conv_features.append(bnn.QuantReLU(
+		self.conv_features.append(qnn.QuantReLU(
 			act_quant=CommonActQuant,
-			bit_width=act_bit_width + 1,
+			bit_width=act_bit_width,
 			return_quant_tensor=True))
 		self.conv_features.append(nn.MaxPool2d(kernel_size=POOL_SIZE))
 
-		self.linear_features.append(
-			bnn.QuantLinear(
+		self.linear_features.append(qnn.QuantLinear(
 			in_features=256,
 			out_features=num_classes,
 			bias=False,
@@ -57,26 +54,33 @@ class CNV(nn.Module):
 			weight_bit_width=weight_bit_width))
 		self.linear_features.append(TensorNorm())
 
-		for mod in self.modules():
-			if isinstance(mod, bnn.QuantConv2d) or isinstance(mod, bnn.QuantLinear):
-				nn.init.uniform_(mod.weight.data, -1, 1)
-
-	def clip_weights(self, min_val, max_val):
-		for mod in self.modules():
-			if isinstance(mod, bnn.QuantConv2d) or isinstance(mod, bnn.QuantLinear):
-				mod.weight.data.clamp_(min_val, max_val)
-
 
 -- common.py --
-class CommonActQuant(CommonQuant, ActQuantSolver):
-	min_val = -3.0
-	max_val = 3.0
+class Fp4e3m0Mixin(ExtendedInjector):
+	bit_width = 4
+	exponent_bit_width = 3
+	mantissa_bit_width = 0
+	saturating = True
 
 
-class CommonInQuant(CommonQuant, ActQuantSolver):
-	min_val = -1.0
-	max_val = 1.0
+class CommonWeightQuant(Fp4e3m0Mixin,
+			ScaledFloatWeightBase):
+	scaling_per_output_type = ScalingPerOutputType.TENSOR
 
+	@value
+	def exponent_bias(exponent_bit_width):
+		return 1
+
+
+class CommonActQuant(Fp4e2m1Mixin,
+			 FloatActBase,
+			 ActQuantSolver):
+	scaling_impl_type = ScalingImplType.CONST
+	scaling_per_output_channel = False
+	restrict_scaling_type = RestrictValueType.FP
+	scaling_const = 1.0
+	max_val = 0.5
+	min_val = -0.5
  */
 #include "kernel.hpp"
 #include <ap_int.h>
@@ -127,22 +131,23 @@ public:
 	}
 };
 
-uint8_t mul68(const uint6_t i) {
-	static const uint8_t table[] = {
+uint4_t mul64(const uint6_t i) {
+	static const uint4_t table[] = {
 0, 0, 0, 0, 0, 0, 0, 0,
-0, 0, 1, 1, 2, 4, 8, 16,
-0, 1, 1, 2, 4, 8, 16, 32,
-0, 1, 2, 3, 6, 12, 24, 48,
-0, 1, 2, 4, 8, 16, 32, 64,
-0, 2, 3, 6, 12, 24, 48, 96,
-0, 2, 4, 8, 16, 32, 64, 128,
-0, 3, 6, 12, 24, 48, 96, 192,
+0, 0, 1, 1, 1, 1, 1, 1,
+0, 1, 1, 2, 2, 2, 2, 2,
+0, 1, 2, 3, 3, 3, 3, 3,
+0, 1, 2, 4, 4, 4, 4, 4,
+0, 2, 3, 6, 6, 6, 6, 6,
+0, 2, 4, 8, 8, 8, 8, 8,
+0, 3, 6, 12, 12, 12, 12, 12,
 	};
 	return table[i];
 }
 
 int16_t mul(const uint4_t v, const uint4_t w) {
-	uint8_t oval = mul68((v(2, 0), w(2, 0)));
+	int16_t oval = mul64((v(2, 0), w(2, 0)));
+	oval = oval << ((w(1, 0) + 1) & (0 - w[2]));
 	return (v[3] ^ w[3]) == 1 ? -oval : oval;
 }
 
@@ -335,7 +340,7 @@ private:
 	}
 public:
 	void read(const int c, const int f, const int weight[], const int threshold[][THRESHOLD],
-	    T wi[], int thr[][THRESHOLD])
+		T wi[], int thr[][THRESHOLD])
 	{
 		int ptr = 0;
 		for (int j = 0; j < F; j++) {
@@ -351,16 +356,16 @@ public:
 				wi[j * KN * KN + k] = val;
 			}
 
-    		for (int i = 0; i < THRESHOLD; i++) {
+			for (int i = 0; i < THRESHOLD; i++) {
 #pragma HLS unroll
-	    		thr[j][i] = threshold[j][i];
-		    }
+				thr[j][i] = threshold[j][i];
+			}
 		}
 
 	}
 
 	void compute(const int h, const int w, const int c, const int f,
-	    const T wi[], const int thr[][THRESHOLD], const T inb[], T outb[])
+		const T wi[], const int thr[][THRESHOLD], const T inb[], T outb[])
 	{
 		fifo<WT> pips("pipe_fifo");
 
@@ -472,16 +477,16 @@ private:
 			}
 		}
 
-    	int16_t max = -10000;
-    	int m = 0;
+		int16_t max = -10000;
+		int m = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
-    		if (acc[i] > max) {
-	    		max = acc[i];
-		    	m = i;
-    		}
+			if (acc[i] > max) {
+				max = acc[i];
+				m = i;
+			}
 		}
-    	out[0] = m;
+		out[0] = m;
 	}
 
 public:
@@ -575,7 +580,7 @@ I4(0xa), I4(0x0), I4(0xd), I4(0xe), I4(0xc), I4(0x3), I4(0x4), I4(0x4), I4(0xd),
 { 95, 105, 116, 126, 147, 168, 209, },
 { 96, 102, 109, 115, 128, 141, 167, },
 { 55, 70, 85, 100, 131, 162, 223, },
-    };
+	};
 #pragma HLS array_partition variable=conv0_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv0_thr
 
