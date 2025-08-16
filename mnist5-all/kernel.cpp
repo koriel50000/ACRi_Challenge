@@ -22,7 +22,7 @@ const int CHANNEL = 16;
 const int FILTER = 16;
 
 const int KERNEL = 5;
-const int THRESHOLD = 3;
+const int THRESHOLD = 7;
 
 const int FLATTEN = 256;
 const int CLASS = 10;
@@ -241,7 +241,7 @@ private:
 		}
 	}
 
-	void conv(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
+	void conv(const int h, const int w, const int c, const int f, const T wi[], const int thr[][THRESHOLD],
 		T outb[], fifo<WT>& pips)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
@@ -257,14 +257,16 @@ private:
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
-					oval[j] = batch_norm(acc, thr, true);
+					oval[j] = batch_norm(acc, thr[j], true);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
 		}
 	}
 public:
-	void read(const int c, const int f, const int weight[], const int threshold[], T wi[], int thr[]) {
+	void read(const int c, const int f, const int weight[], const int threshold[][THRESHOLD],
+	    T wi[], int thr[][THRESHOLD])
+	{
 		int ptr = 0;
 		for (int j = 0; j < F; j++) {
 			if (j >= f) break;
@@ -278,16 +280,17 @@ public:
 				}
 				wi[j * KN * KN + k] = val;
 			}
+
+    		for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
+	    		thr[j][i] = threshold[j][i];
+		    }
 		}
 
-		for (int i = 0; i < THRESHOLD; i++) {
-#pragma HLS unroll
-			thr[i] = threshold[i];
-		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f, const T wi[], const int thr[],
-		const T inb[], T outb[])
+	void compute(const int h, const int w, const int c, const int f,
+	    const T wi[], const int thr[][THRESHOLD], const T inb[], T outb[])
 	{
 		fifo<WT> pips("pipe_fifo");
 
@@ -437,8 +440,7 @@ void read_input(const int in[H * W * C], T inb[]) {
 			T val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-				val[z] = in[ptr++] * 2 - 1
-				;
+				val[z] = in[ptr++] * 2 - 1;
 			}
 			inb[y * WIDTH + x] = val;
 		}
