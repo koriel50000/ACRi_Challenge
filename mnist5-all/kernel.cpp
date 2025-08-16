@@ -58,14 +58,15 @@ public:
 
 uint6_t mul66(const uint6_t i) {
 	static const uint6_t table[] = {
-		0,	0,	0,	0,	0,	0,	0,	0,
-		0,	0,	0,	1,	1,	2,	4,	8,
-		0,	0,	1,	1,	2,	4,	8,	16,
-		0,	0,	1,	2,	3,	6,	12,	24,
-		0,	1,	1,	2,	4,	8,	16,	32,
-		0,	1,	1,	3,	5,	10,	20,	40,
-		0,	1,	2,	3,	6,	12,	24,	48,
-		0,	1,	2,	4,	7,	14,	28,	56,
+0, 1, 2, 4, 8, 16, 32, 64,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 1, 1, 2, 4, 8, 16,
+0, 1, 1, 2, 4, 8, 16, 32,
+0, 1, 2, 3, 6, 12, 24, 48,
+0, 1, 2, 4, 8, 16, 32, 64,
+0, 2, 3, 6, 12, 24, 48, 96,
+0, 2, 4, 8, 16, 32, 64, 128,
+0, 3, 6, 12, 24, 48, 96, 192,
 	};
 	return table[i];
 }
@@ -273,7 +274,7 @@ public:
 				for (int i = 0; i < C; i++) {
 #pragma HLS unroll
 					if (i >= c) break;
-					val[i] = (weight[ptr++] << 2) & 0xf;
+					val[i] = weight[ptr++] & 0xf;
 				}
 				wi[j * KN * KN + k] = val;
 			}
@@ -411,7 +412,7 @@ public:
 			for (int j = 0; j < FL / K; j++) {
 				for (int k = 0; k < K; k++) {
 #pragma HLS unroll
-					uint4_t val = (weight[ptr++] << 2) & 0xf;
+					uint4_t val = weight[ptr++] & 0xf;
 					mat[j * CL + i][k] = val;
 				}
 			}
@@ -436,7 +437,8 @@ void read_input(const int in[H * W * C], T inb[]) {
 			T val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-				val[z] = in[ptr++];
+				val[z] = in[ptr++] * 2 - 1
+				;
 			}
 			inb[y * WIDTH + x] = val;
 		}
