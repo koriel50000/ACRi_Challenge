@@ -329,7 +329,7 @@ private:
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 						if (c == 1) {
-							acc += mul(val[k], wi[j * KN * KN + k]);
+							acc += mul(val[k][0], wi[j * KN * KN + k][0]);
 						} else {
 							acc += muladd<C>(val[k], wi[j * KN * KN + k]);
 						}
