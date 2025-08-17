@@ -153,7 +153,7 @@ int16_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int N>
-int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
+int16_t muladd(const int_t<N> vu, const int_t<N> wi) {
 	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
