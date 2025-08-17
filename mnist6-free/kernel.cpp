@@ -332,30 +332,6 @@ private:
 		}
 	}
 public:
-	void read(const int c, const int f, const int weight[], const int threshold[][THRESHOLD],
-		T wi[], int thr[][THRESHOLD])
-	{
-		int ptr = 0;
-		for (int j = 0; j < F; j++) {
-			for (int k = 0; k < KN * KN; k++) {
-#pragma HLS pipeline
-				T val;
-				for (int i = 0; i < C; i++) {
-#pragma HLS unroll
-					int v = (j < f && i < c) ? weight[ptr++] : 0;
-					val[i] = v & 0xf;
-				}
-				wi[j * KN * KN + k] = val;
-			}
-
-			for (int i = 0; i < THRESHOLD; i++) {
-#pragma HLS unroll
-				thr[j][i] = threshold[j][i];
-			}
-		}
-
-	}
-
 	void compute(const int h, const int w, const int c, const int f,
 		const T wi[], const int thr[][THRESHOLD], const T inb[], T outb[])
 	{
@@ -399,12 +375,12 @@ private:
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-				buf[x] = (y < oh && x < ow) ? pips.read() : 0;
+				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 				T val1 = buf[x];
-				T val2 = (y < oh && x < ow) ? pips.read() : 0;
+				T val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
 				outb[y * WIDTH + x] = oval;
@@ -476,20 +452,6 @@ private:
 	}
 
 public:
-	void read(const int weight[CL * FL], IT mat[CL * FL / K]) {
-		int ptr = 0;
-		for (int i = 0; i < CL; i++) {
-#pragma HLS pipeline
-			for (int j = 0; j < FL / K; j++) {
-				for (int k = 0; k < K; k++) {
-#pragma HLS unroll
-					uint4_t val = weight[ptr++] & 0xf;
-					mat[j * CL + i][k] = val;
-				}
-			}
-		}
-	}
-
 	void compute_and_write_result(int out[1], const IT mat[CL * FL / K], const IT inb[]) {
 		fifo<OT> pips("pipe_fifo");
 
