@@ -74,7 +74,7 @@ int16_t mul(const uint4_t v, const uint4_t w) {
 	int16_t sign = v[3] ^ w[3];
 	int16_t oval = mul64((v(2, 0), w(2, 0)));
 	oval = oval << ((w(1, 0) + 1) & (0 - w[2]));
-	return  == (oval ^ -sign) + sign;
+	return (oval ^ -sign) + sign;
 }
 
 template <int N>
