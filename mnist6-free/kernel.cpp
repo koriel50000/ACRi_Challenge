@@ -159,15 +159,12 @@ int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 	for (int i = 0; i < N; i++) {
 		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
-		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
 	}
 
 	for (int d = 1; d < N; d *= 2) {
-		if (d >= n) break;
 		for (int i = 0; i < N; i += d * 2) {
 #pragma HLS unroll
-			if (i >= n) break;
 			t[i] += t[i + d];
 		}
 	}
@@ -288,7 +285,6 @@ private:
 		int y = 0 - (KN - 1);
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
 #pragma HLS pipeline
-			if (i >= (w + PD) * (h + PD * 2) + PD) break;
 			T val;
 			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
@@ -320,14 +316,11 @@ private:
 		T outb[], fifo<WT>& pips)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
-			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
-				if (x >= w - (KN - 1)) break;
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
-					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
@@ -344,14 +337,13 @@ public:
 	{
 		int ptr = 0;
 		for (int j = 0; j < F; j++) {
-			if (j >= f) break;
 			for (int k = 0; k < KN * KN; k++) {
 #pragma HLS pipeline
 				T val;
 				for (int i = 0; i < C; i++) {
 #pragma HLS unroll
-					if (i >= c) break;
-					val[i] = weight[ptr++] & 0xf;
+					int v = (j < f && i < c) ? weight[ptr++] : 0;
+					val[i] = v & 0xf;
 				}
 				wi[j * KN * KN + k] = val;
 			}
@@ -383,17 +375,14 @@ private:
 	void maxpool(const int c, const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			if (z >= c) break;
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
 
 	void compute_h(const int h, const int w, const int c, const T inb[], fifo<T>& pips) {
 		for (int y = 0; y < H; y++) {
-			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
-				if (x >= w) break;
 				T val1 = inb[y * WIDTH + x];
 				T val2 = inb[y * WIDTH + x + 1];
 				T oval;
@@ -408,17 +397,14 @@ private:
 #pragma HLS array_partition variable=buf
 
 		for (int y = 0; y < H; y++) {
-			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-				if (x >= ow) break;
-				buf[x] = pips.read();
+				buf[x] = (y < oh && x < ow) ? pips.read() : 0;
 			}
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-				if (x >= ow) break;
 				T val1 = buf[x];
-				T val2 = pips.read();
+				T val2 = (y < oh && x < ow) ? pips.read() : 0;
 				T oval;
 				maxpool(c, val1, val2, oval);
 				outb[y * WIDTH + x] = oval;
@@ -513,16 +499,17 @@ public:
 	}
 };
 
-template <int H, int W, int C, typename T>
-void read_input(const int in[H * W * C], T inb[]) {
+template <typename T>
+void read_input(const int h, const int w, const int c, const int in[], T inb[]) {
 	int ptr = 0;
-	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
+	for (int y = 0; y < HEIGHT; y++) {
+		for (int x = 0; x < WIDTH; x++) {
 #pragma HLS pipeline
 			T val;
-			for (int z = 0; z < C; z++) {
+			for (int z = 0; z < CHANNEL; z++) {
 #pragma HLS unroll
-				val[z] = in[ptr++] * 8 - 4;
+				int v = (y < h && x < w && z < c) ? in[ptr++] : 0;
+				val[z] = v * 8 - 4;
 			}
 			inb[y * WIDTH + x] = val;
 		}
@@ -735,7 +722,7 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	read_input<28,28,1,data_t>(in, even_buf);
+	read_input<data_t>(28, 28, 1, in, even_buf);
 	conv.compute(28, 28, 1, 16, conv0_wi, conv0_thr, even_buf, odd_buf);
 	maxpool.compute(24, 24, 16, odd_buf, even_buf);
 	conv.compute(12, 12, 16, 16, conv1_wi, conv1_thr, even_buf, odd_buf);
