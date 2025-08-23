@@ -341,7 +341,7 @@ private:
 		}
 	}
 
-	void compute_v(const int oh, const int ow, const int c, wlb& outb, fifo<T>& pips) {
+	void compute_v(const int oh, const int ow, const int c, sob& outb, fifo<T>& pips) {
 		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
 
