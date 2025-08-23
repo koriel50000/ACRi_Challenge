@@ -39,7 +39,7 @@ int16_t muladd(const int n, const int8_t vu[N], const int8_t wi[N]) {
 		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
-		t[i] = mul(vu[i], wi[i]);
+		t[i] = vu[i] * wi[i];
 	}
 
 	for (int d = 1; d < N; d *= 2) {
@@ -60,7 +60,7 @@ private:
 	using OT = int16_t[CL];
 
 	void flatten(const IT mat[CL * FL / K], sob& inb, fifo<OT>& pips) {
-	    hls::read_lock inbL(inb);
+	    hls::read_lock<block_data_t> inbL(inb);
 
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
@@ -102,7 +102,7 @@ private:
 		}
 	}
 public:
-	void read(fifo<IT>& ins, IT mat[CL * FL / K]) {
+	void read(fifo<int8_t>& ins, IT mat[CL * FL / K]) {
 		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -126,8 +126,8 @@ public:
 };
 
 template <int H, int W, int C, typename T>
-void read_input(fifo<T>& ins, sob& outb) {
-    hls::write_lock outbL(outb);
+void read_input(fifo<int8_t>& ins, sob& outb) {
+    hls::write_lock<block_data_t> outbL(outb);
 
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
@@ -142,8 +142,8 @@ void read_input(fifo<T>& ins, sob& outb) {
 	}
 }
 
-template <int T, typename CL>
-void process(fifo<T>& ins, int out[10]) {
+template <typename CL>
+void process(fifo<int8_t>& ins, int out[CL]) {
     Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
 	sob even_sob;
@@ -177,5 +177,5 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
         ins.write(in[i]);
     }
 
-    process<data_t,CLASS>(ins, out);
+    process<int8_t,CLASS>(ins, out);
 }
