@@ -74,7 +74,7 @@ private:
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-					IT wi = mat[ptr++];
+					IT wi = &mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
 				}
