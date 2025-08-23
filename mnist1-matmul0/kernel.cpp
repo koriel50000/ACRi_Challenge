@@ -28,7 +28,8 @@ using fifo = hls::stream<T>;
 using data_t = int8_t[CHANNEL];
 using block_data_t = data_t[HEIGHT * WIDTH];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
-using sob = hls::stream_of_blocks<block_data_t>;
+template <typename T>
+using sob = hls::stream_of_blocks<T>;
 
 template <int N>
 int16_t muladd(const int n, const int8_t vu[N], const int8_t wi[N]) {
@@ -57,7 +58,7 @@ template <int CL, int FL, int K, int H, int W>
 class Dense {
 private:
 	using IT = int8_t[K];
-	using OT = int16_t[CL];
+	using OT = hls::vector<int16_t, CL>;
 
 	void flatten(const IT mat[CL * FL / K], sob& inb, fifo<OT>& pips) {
 	    hls::read_lock<block_data_t> inbL(inb);
@@ -120,7 +121,7 @@ public:
 		}
 	}
 
-    void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], sob& inb) {
+    void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], sob<block_data_t>& inb) {
 		fifo<OT> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -130,7 +131,7 @@ public:
 };
 
 template <int H, int W, int C, typename T>
-void read_input(fifo<int8_t>& ins, sob& outb) {
+void read_input(fifo<int8_t>& ins, sob<block_data_t>& outb) {
     hls::write_lock<block_data_t> outbL(outb);
 
 	for (int y = 0; y < H; y++) {
@@ -147,8 +148,7 @@ void read_input(fifo<int8_t>& ins, sob& outb) {
 void process(fifo<int8_t>& ins, int out[CLASS]) {
     Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	sob even_sob;
-	sob odd_sob;
+	sob<block_data_t> even_sob;
 
 	static data_t mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
