@@ -60,7 +60,7 @@ private:
 	using IT = int8_t[K];
 	using OT = hls::vector<int16_t, CL>;
 
-	void flatten(const IT mat[CL * FL / K], sob& inb, fifo<OT>& pips) {
+	void flatten(const IT mat[CL * FL / K], sob<block_data_t>& inb, fifo<OT>& pips) {
 	    hls::read_lock<block_data_t> inbL(inb);
 
 		int ptr = 0;
