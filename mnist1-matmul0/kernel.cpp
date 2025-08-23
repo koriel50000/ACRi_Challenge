@@ -132,12 +132,10 @@ void read_input(fifo<int8_t>& ins, sob& outb) {
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
-			T val;
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-				val[z] = ins.read();
+				outbL[y * WIDTH + x][z] = ins.read();
 			}
-			outbL[y * WIDTH + x] = val;
 		}
 	}
 }
