@@ -65,7 +65,7 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inb[y * WIDTH + x];
+				IT vu = inbL[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -142,8 +142,7 @@ void read_input(fifo<int8_t>& ins, sob& outb) {
 	}
 }
 
-template <typename CL>
-void process(fifo<int8_t>& ins, int out[CL]) {
+void process(fifo<int8_t>& ins, int out[CLASS]) {
     Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
 	sob even_sob;
@@ -177,5 +176,5 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
         ins.write(in[i]);
     }
 
-    process<int8_t,CLASS>(ins, out);
+    process(ins, out);
 }
