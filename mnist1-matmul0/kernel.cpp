@@ -57,7 +57,7 @@ int16_t muladd(const int n, const int8_t vu[N], const int8_t wi[N]) {
 template <int CL, int FL, int K, int H, int W>
 class Dense {
 private:
-	using IT = int8_t[K];
+	using IT = int8_t*;
 	using OT = hls::vector<int16_t, CL>;
 
 	void flatten(const IT mat[CL * FL / K], sob<block_data_t>& inb, fifo<OT>& pips) {
