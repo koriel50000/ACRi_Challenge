@@ -60,7 +60,7 @@ private:
 	using IT = hls::vector<int8_t, K>;
 	using OT = hls::vector<int16_t, CL>;
 public:
-	void read(fifo<int8_t>& ins, IT mat[CL * FL / K]) {
+	void read(fifo<int8_t>& ins, IT& mat[CL * FL / K]) {
 		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -68,7 +68,7 @@ public:
 				for (int k = 0; k < K; k++) {
 #pragma HLS unroll
 					int8_t val = ins.read();
-					mat[j * CL + i][k] = val;
+					(*mat[j * CL + i])[k] = val;
 				}
 			}
 		}
