@@ -25,7 +25,7 @@ const int CHUNK_SIZE = 16;
 template <typename T>
 using fifo = hls::stream<T>;
 
-using data_t = int8_t[CHANNEL];
+using data_t = hls::vector<int8_t, CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
 template <typename T>
@@ -57,7 +57,7 @@ int16_t muladd(const int n, const int8_t vu[N], const int8_t wi[N]) {
 template <int CL, int FL, int K, int H, int W>
 class Dense {
 private:
-	using IT = int8_t*;
+	using IT = hls::vector<int8_t, K>;
 	using OT = hls::vector<int16_t, CL>;
 
 	void flatten(const IT mat[CL * FL / K], sob<block_data_t>& inb, fifo<OT>& pips) {
@@ -74,7 +74,7 @@ private:
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-					IT wi = &mat[ptr++];
+					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
 				}
