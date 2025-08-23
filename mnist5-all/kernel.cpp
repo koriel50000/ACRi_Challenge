@@ -371,8 +371,8 @@ public:
 		fifo<T> pips("pipe_fifo");
 
 #pragma HLS dataflow
-		compute_h(h, w, c, inbL, pips);
-		compute_v(h / 2, w / 2, c, outbL, pips);
+		compute_h(h, w, c, inb, pips);
+		compute_v(h / 2, w / 2, c, outb, pips);
 	}
 };
 
