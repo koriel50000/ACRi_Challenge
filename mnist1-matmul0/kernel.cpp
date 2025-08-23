@@ -65,7 +65,11 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inbL[y * WIDTH + x];
+				IT vu;
+				for (int z = 0; z < K; z++) {
+#pragma HLS unroll
+    				vu[z] = inbL[y * WIDTH + x][z];
+				}
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
