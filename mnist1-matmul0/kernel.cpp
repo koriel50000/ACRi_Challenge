@@ -32,7 +32,7 @@ template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
 template <int N>
-int16_t muladd(const int n, const int8_t vu[N], const int8_t wi[N]) {
+int16_t muladd(const int n, const hls::vector<int8_t,N>& vu, const hls::vector<int8_t,N>& wi) {
 	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
