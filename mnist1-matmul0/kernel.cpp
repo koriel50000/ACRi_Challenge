@@ -109,7 +109,7 @@ public:
 			for (int j = 0; j < FL / K; j++) {
 				for (int k = 0; k < K; k++) {
 #pragma HLS unroll
-					IT val = ins.read();
+					int8_t val = ins.read();
 					mat[j * CL + i][k] = val;
 				}
 			}
