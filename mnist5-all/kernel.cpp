@@ -447,7 +447,9 @@ public:
 };
 
 template <int H, int W, int C, typename T>
-void read_input(const int in[H * W * C], sob& inb) {
+void read_input(const int in[H * W * C], sob& outb) {
+    wlb oubL(outb);
+
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
@@ -457,7 +459,7 @@ void read_input(const int in[H * W * C], sob& inb) {
 #pragma HLS unroll
 				val[z] = in[ptr++] * 8 - 4;
 			}
-			inb[y * WIDTH + x] = val;
+			oubL[y * WIDTH + x] = val;
 		}
 	}
 }
