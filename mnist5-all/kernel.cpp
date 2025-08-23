@@ -214,8 +214,9 @@ private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
 
-	void windowize(const int h, const int w, rlb& inb, fifo<WT>& pips) {
+	void windowize(const int h, const int w, sob& inb, fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
+		rlb inbL(inb);
 
 		int x = 0 - (KN - 1);
 		int y = 0 - (KN - 1);
@@ -226,7 +227,7 @@ private:
 			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
 			{
-				val = inb[(y + (KN - 1)) * WIDTH + (x + (KN - 1))];
+				val = inbL[(y + (KN - 1)) * WIDTH + (x + (KN - 1))];
 			}
 			else {
 				val = 0;
@@ -250,8 +251,10 @@ private:
 	}
 
 	void conv(const int h, const int w, const int c, const int f, const T wi[], const int thr[][THRESHOLD],
-		wlb& outb, fifo<WT>& pips)
+		sob& outb, fifo<WT>& pips)
 	{
+		wlb outbL(outb);
+
 		for (int y = 0; y < H - (KN - 1); y++) {
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
@@ -267,7 +270,7 @@ private:
 					}
 					oval[j] = batch_norm(acc, thr[j], true);
 				}
-				outb[y * WIDTH + x] = oval;
+				outbL[y * WIDTH + x] = oval;
 			}
 		}
 	}
@@ -302,12 +305,9 @@ public:
 	{
 		fifo<WT> pips("pipe_fifo");
 
-		rlb inbL(inb);
-		wlb outbL(outb);
-
 #pragma HLS dataflow
-		windowize(h, w, inbL, pips);
-		conv(h, w, c, f, wi, thr, outbL, pips);
+		windowize(h, w, inb, pips);
+		conv(h, w, c, f, wi, thr, outb, pips);
 	}
 };
 
@@ -324,14 +324,16 @@ private:
 		}
 	}
 
-	void compute_h(const int h, const int w, const int c, rlb& inb, fifo<T>& pips) {
+	void compute_h(const int h, const int w, const int c, sob& inb, fifo<T>& pips) {
+		rlb inbL(inb);
+
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T val1 = inb[y * WIDTH + x];
-				T val2 = inb[y * WIDTH + x + 1];
+				T val1 = inbL[y * WIDTH + x];
+				T val2 = inbL[y * WIDTH + x + 1];
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -342,6 +344,8 @@ private:
 	void compute_v(const int oh, const int ow, const int c, wlb& outb, fifo<T>& pips) {
 		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
+
+		wlb outbL(outb);
 
 		for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
@@ -357,7 +361,7 @@ private:
 				T val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
-				outb[y * WIDTH + x] = oval;
+				outbL[y * WIDTH + x] = oval;
 			}
 		}
 	}
@@ -365,9 +369,6 @@ private:
 public:
 	void compute(const int h, const int w, const int c, sob& inb, sob& outb) {
 		fifo<T> pips("pipe_fifo");
-
-		rlb inbL(inb);
-		wlb outbL(outb);
 
 #pragma HLS dataflow
 		compute_h(h, w, c, inbL, pips);
@@ -381,11 +382,13 @@ private:
 	using IT = int_t<K>;
 	using OT = int_t<CL,16>;
 
-	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
+	void flatten(const IT mat[CL * FL / K], sob& inb, fifo<OT>& pips) {
+		rlb inbL(inb);
+
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inb[y * WIDTH + x];
+				IT vu = inbL[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -439,9 +442,8 @@ public:
 	void compute_and_write_result(int out[CL], const IT mat[CL * FL / K], sob& inb) {
 		fifo<OT> pips("pipe_fifo");
 
-		rlb inbL(inb);
-
-		flatten(mat, inbL, pips);
+#pragma HLS dataflow
+		flatten(mat, inb, pips);
 		write_result(out, pips);
 	}
 };
@@ -673,13 +675,10 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	static block_data_t even_buf;
-	static block_data_t odd_buf;
-#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
-
-    sob even_sob(even_buf);
-    sob odd_sob(odd_buf);
+	static sob even_sob;
+	static sob odd_sob;
+#pragma HLS array_partition variable=even_sob cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_sob cyclic factor=WIDTH
 
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_sob);
