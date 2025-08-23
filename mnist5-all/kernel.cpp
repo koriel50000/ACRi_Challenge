@@ -56,6 +56,13 @@ public:
 	}
 };
 
+using data_t = int_t<CHANNEL>;
+using block_data_t = data_t[HEIGHT * WIDTH];
+using win_t = hls::vector<data_t, KERNEL * KERNEL>;
+using sob = hls::stream_of_blocks<block_data_t>;
+using rlb = hls::read_lock<block_data_t>;
+using wlb = hls::write_lock<block_data_t>;
+
 uint4_t mul64(const uint6_t i) {
 	static const uint4_t table[] = {
 0, 0, 0, 0, 0, 0, 0, 0,
@@ -454,13 +461,6 @@ void read_input(const int in[H * W * C], sob& inb) {
 		}
 	}
 }
-
-using data_t = int_t<CHANNEL>;
-using block_data_t = data_t[HEIGHT * WIDTH];
-using win_t = hls::vector<data_t, KERNEL * KERNEL>;
-using sob = hls::stream_of_blocks<block_data_t>;
-using rlb = hls::read_lock<block_data_t>;
-using wlb = hls::write_lock<block_data_t>;
 
 void kernel(
 	int in[28 * 28 * 1],
