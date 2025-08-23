@@ -60,7 +60,7 @@ private:
 	using IT = hls::vector<int8_t, K>;
 	using OT = hls::vector<int16_t, CL>;
 public:
-	void read(fifo<int8_t>& ins, IT& mat[CL * FL / K]) {
+	void read(fifo<int8_t>& ins, IT mat[CL * FL / K]) {
 		int ptr = 0;
 		for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -74,7 +74,7 @@ public:
 		}
 	}
 
-	void flatten(const IT& mat[CL * FL / K], sob<block_data_t>& inb, fifo<OT>& pips) {
+	void flatten(const IT mat[CL * FL / K], sob<block_data_t>& inb, fifo<OT>& pips) {
 	    hls::read_lock<block_data_t> inbL(inb);
 
 		int ptr = 0;
