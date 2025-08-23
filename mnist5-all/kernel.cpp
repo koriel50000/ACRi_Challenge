@@ -363,7 +363,7 @@ private:
 	}
 
 public:
-	void compute(const int h, const int w, const int c, const sob& inb, sob& outb) {
+	void compute(const int h, const int w, const int c, sob& inb, sob& outb) {
 		fifo<T> pips("pipe_fifo");
 
 		rlb inbL(inb);
