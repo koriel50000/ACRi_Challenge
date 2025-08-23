@@ -446,7 +446,7 @@ public:
 	}
 };
 
-template <int H, int W, int C>
+template <int H, int W, int C, typename T>
 void read_input(const int in[H * W * C], sob& inb) {
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
