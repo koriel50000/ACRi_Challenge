@@ -144,7 +144,7 @@ void process(fifo<int8_t>& ins, int out[CLASS]) {
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
 	sob<block_data_t> even_sob;
-    fifo<hls::vector<int16_t, CL>> pips("pipe_fifo");
+    fifo<hls::vector<int16_t, CLASS>> pips("pipe_fifo");
 
 #pragma HLS dataflow
 	matmul0.read(ins, mat_wi);
