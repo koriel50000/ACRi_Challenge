@@ -704,12 +704,12 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
 #pragma HLS unroll factor=KERNEL*KERNEL skip_exit_check
-	    even_wi[i] = conv0_wi[i];
+	    odd_wi[i] = conv1_wi[i];
 	}
 	for (int j = 0; j < FILTER; j++) {
     	for (int i = 0; i < THRESHOLD; i++) {
 #pragma HLS unroll
-	        even_thr[j][i] = conv0_thr[j][i];
+	        odd_thr[j][i] = conv1_thr[j][i];
     	}
 	}
 	ends.write(true);
