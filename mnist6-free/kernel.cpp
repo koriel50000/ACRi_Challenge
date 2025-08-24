@@ -748,6 +748,7 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 
 	fifo<bool> ends("ends_fifo");
 
+#pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
 	    odd_wi, odd_thr, mat_wi, ends);
 	ends.read();
