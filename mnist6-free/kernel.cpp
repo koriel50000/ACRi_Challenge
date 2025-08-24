@@ -162,7 +162,7 @@ int16_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int N>
-int16_t muladd(const int_t<N> vu, const int_t<N> wi) {
+int16_t muladd(const int_t<N>& vu, const int_t<N>& wi) {
 	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
@@ -243,12 +243,12 @@ private:
 		}
 	}
 
-	void insert_bottom_row(T value) {
+	void insert_bottom_row(T& value) {
 #pragma HLS inline
 		buf_[width_ * (KN - 1) - 1] = value;
 	}
 
-	void get_col(T value[KN - 1]) {
+	void get_col(T& value[KN - 1]) {
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
@@ -258,12 +258,12 @@ private:
 public:
 	LineBuffer(int w = W) : width_(w) {}
 
-	void insert_linebuf(const T v) {
+	void insert_linebuf(const T& v) {
 		shift_pixels_up();
 		insert_bottom_row(v);
 	}
 
-	void slide_window(const T v) {
+	void slide_window(const T& v) {
 		T rows[KN];
 #pragma HLS array_partition variable=rows
 
@@ -287,7 +287,9 @@ private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
 
-	void windowize(const int h, const int w, const T inb[], fifo<WT>& pips) {
+	void windowize(const int h, const int w, sob<block_data_t>& inb, fifo<WT>& pips) {
+	    hls::read_lock<block_data_t> inbL(inb);
+
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
 
 		int x = 0 - (KN - 1);
@@ -296,11 +298,11 @@ private:
 #pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + PD) * (h + PD * 2) + PD) break;
-			T val;
+			T& val;
 			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
 			{
-				val = inb[(y + (KN - 1)) * WIDTH + (x + (KN - 1))];
+				val = inbL[(y + (KN - 1)) * WIDTH + (x + (KN - 1))];
 			}
 			else {
 				val = 0;
@@ -312,7 +314,7 @@ private:
 				linebuf.slide_window(val);
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
-				WT oval = linebuf.get_window();
+				WT& oval = linebuf.get_window();
 				pips.write(oval);
 			}
 			x++;
@@ -324,14 +326,16 @@ private:
 	}
 
 	void conv(const int h, const int w, const int c, const int f,
-	    const T wi[], const int16_t thr[][THRESHOLD],
-		T outb[], fifo<WT>& pips)
+	    sob<block_conv_t>& wi, sob<block_thr_t>& thr,
+		sob<block_data_t>& outb, fifo<WT>& pips)
 	{
+        hls::write_lock<block_data_t> outbL(outb);
+
 		for (int y = 0; y < H - (KN - 1); y++) {
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
 				if (x >= w - (KN - 1)) break;
-				WT val = pips.read();
+				WT& val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
@@ -346,13 +350,14 @@ private:
 					}
 					oval[j] = batch_norm(acc, thr[j], true);
 				}
-				outb[y * WIDTH + x] = oval;
+				outbL[y * WIDTH + x] = oval;
 			}
 		}
 	}
 public:
 	void compute(const int h, const int w, const int c, const int f,
-		const T wi[], const int16_t thr[][THRESHOLD], const T inb[], T outb[])
+        sob<block_conv_t>& wi, sob<block_thr_t>& thr,
+        sob<block_data_t>& inb, sob<block_data_t>& outb)
 	{
 		fifo<WT> pips("pipe_fifo");
 
@@ -367,7 +372,7 @@ class MaxPool2x2 {
 private:
 	using T = int_t<C>;
 
-	void maxpool(const int c, const T v1, const T v2, T& ov) {
+	void maxpool(const int c, const T& v1, const T& v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			if (z >= c) break;
@@ -375,14 +380,18 @@ private:
 		}
 	}
 
-	void compute_h(const int h, const int w, const int c, const T inb[], fifo<T>& pips) {
+	void compute_h(const int h, const int w, const int c,
+	    sob<block_data_t>& inb, fifo<T>& pips)
+	{
+	    hls::read_lock<block_data_t> inbL(inb);
+
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T val1 = inb[y * WIDTH + x];
-				T val2 = inb[y * WIDTH + x + 1];
+				T& val1 = inb[y * WIDTH + x];
+				T& val2 = inb[y * WIDTH + x + 1];
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -390,7 +399,11 @@ private:
 		}
 	}
 
-	void compute_v(const int oh, const int ow, const int c, T outb[], fifo<T>& pips) {
+	void compute_v(const int oh, const int ow, const int c,
+	    sob<block_data_t>& outb, fifo<T>& pips)
+	{
+	    hls::write_lock<block_data_t> outbL(outb);
+
 		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
 
@@ -404,17 +417,19 @@ private:
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 				if (x >= ow) break;
-				T val1 = buf[x];
-				T val2 = pips.read();
+				T& val1 = buf[x];
+				T& val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
-				outb[y * WIDTH + x] = oval;
+				outbL[y * WIDTH + x] = oval;
 			}
 		}
 	}
 
 public:
-	void compute(const int h, const int w, const int c, const T inb[], T outb[]) {
+	void compute(const int h, const int w, const int c,
+	    sob<block_data_t> inb, sob<block_data_t>& outb)
+	{
 		fifo<T> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -429,15 +444,18 @@ private:
 	using IT = int_t<K>;
 	using OT = int_t<CL,16>;
 
-	void flatten(const IT mat[CL * FL / K], const IT inb[], fifo<OT>& pips) {
+	void flatten(sob<block_mat_t>& mat, sob<block_data_t>& inb, fifo<OT>& pips) {
+	    hls::read_lock<block_mat_t> matL(mat);
+	    hls::read_lock<block_data_t> inbL(inb);
+
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inb[y * WIDTH + x];
+				IT& vu = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-					IT wi = mat[ptr++];
+					IT& wi = matL[ptr++];
 					int16_t acc = muladd<K>(vu, wi);
 					oval[i] = acc;
 				}
@@ -477,7 +495,7 @@ private:
 	}
 
 public:
-	void compute_and_write_result(int out[1], const IT mat[CL * FL / K], const IT inb[]) {
+	void compute_and_write_result(int out[1], sob<block_mat_t>& mat, sob<block_data_t>& inb) {
 		fifo<OT> pips("pipe_fifo");
 
 #pragma HLS dataflow
@@ -487,10 +505,10 @@ public:
 };
 
 template <int H, int W, int C, typename T>
-void read_input(const int in[H * W * C], block_data_t& even_buf,
-    block_conv_t& even_wi, block_thr_t& even_thr,
-    block_conv_t& odd_wi, block_thr_t& odd_thr,
-    block_mat_t& mat_wi, fifo<bool>& ends)
+void read_input(const int in[H * W * C], sob<block_data_t>& even_buf,
+    sob<block_conv_t>& even_wi, sob<block_thr_t>& even_thr,
+    sob<block_conv_t>& odd_wi, sob<block_thr_t>& odd_thr,
+    sob<block_mat_t>& mat_wi, fifo<bool>& ends)
 {
 	static data_t conv0_wi[FILTER * KERNEL * KERNEL] = {
 I4(0xa), I4(0x6), I4(0x5), I4(0xc), I4(0xb), I4(0x5), I4(0x5), I4(0x5), I4(0xd), I4(0xb), I4(0x5), I4(0x3), I4(0x1), I4(0x4), I4(0xc), I4(0x5), I4(0xa), I4(0xc), I4(0xd), I4(0xe), I4(0x5), I4(0xa), I4(0xc), I4(0xd), I4(0xe),
@@ -678,6 +696,13 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 	};
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
+    hls::write_lock<block_data_t> even_bufL(even_buf);
+    hls::write_lock<block_conv_t_t> even_wiL(even_wi);
+    hls::write_lock<block_thr_t> even_thrL(even_thr);
+    hls::write_lock<block_conv_t> odd_wiL(odd_wi);
+    hls::write_lock<block_thr_t> odd_thrL(odd_thr);
+    hls::write_lock<block_mat_t> mat_wiL(mat_wi);
+
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
@@ -687,37 +712,37 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 #pragma HLS unroll
 				val[z] = in[ptr++] * 8 - 4;
 			}
-			even_buf[y * WIDTH + x] = val;
+			even_bufL[y * WIDTH + x] = val;
 		}
 	}
 
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
 #pragma HLS unroll factor=KERNEL*KERNEL skip_exit_check
-	    even_wi[i] = conv0_wi[i];
+	    even_wiL[i] = conv0_wi[i];
 	}
 	for (int j = 0; j < FILTER; j++) {
     	for (int i = 0; i < THRESHOLD; i++) {
 #pragma HLS unroll
-	        even_thr[j][i] = conv0_thr[j][i];
+	        even_thrL[j][i] = conv0_thr[j][i];
     	}
 	}
 	ends.write(true);
 
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
 #pragma HLS unroll factor=KERNEL*KERNEL skip_exit_check
-	    odd_wi[i] = conv1_wi[i];
+	    odd_wiL[i] = conv1_wi[i];
 	}
 	for (int j = 0; j < FILTER; j++) {
     	for (int i = 0; i < THRESHOLD; i++) {
 #pragma HLS unroll
-	        odd_thr[j][i] = conv1_thr[j][i];
+	        odd_thrL[j][i] = conv1_thr[j][i];
     	}
 	}
 	ends.write(true);
 
 	for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
 #pragma HLS unroll factor=FLATTEN/CHUNK_SIZE skip_exit_check
-	    mat_wi[i] = mat0_wi[i];
+	    mat_wiL[i] = mat0_wi[i];
 	}
 	ends.write(true);
 }
@@ -727,18 +752,6 @@ void compute(int out[1], block_data_t& even_buf, block_data_t& odd_buf,
     block_conv_t& odd_wi, block_thr_t& odd_thr,
     block_mat_t& mat_wi, fifo<bool>& ends)
 {
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
-	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
-
-	ends.read();
-	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
-	maxpool.compute(24, 24, 16, odd_buf, even_buf);
-	ends.read();
-	conv.compute(12, 12, 16, 16, odd_wi, odd_thr, even_buf, odd_buf);
-	maxpool.compute(8, 8, 16, odd_buf, even_buf);
-	ends.read();
-	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
 
 void kernel(int in[HEIGHT * WIDTH], int out[1]) {
@@ -746,13 +759,13 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=WIDTH
 
-	block_data_t even_buf;
-	block_data_t odd_buf;
-	block_conv_t even_wi;
-	block_thr_t even_thr;
-	block_conv_t odd_wi;
-	block_thr_t odd_thr;
-	block_mat_t mat_wi;
+	sob<block_data_t> even_buf;
+	sob<block_data_t> odd_buf;
+	sob<block_conv_t> even_wi;
+	sob<block_thr_t> even_thr;
+	sob<block_conv_t> odd_wi;
+	sob<block_thr_t> odd_thr;
+	sob<block_mat_t> mat_wi;
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
@@ -761,10 +774,21 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
+
 	fifo<bool> ends("ends_fifo");
 
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
 	    odd_wi, odd_thr, mat_wi, ends);
-	compute(out, even_buf, odd_buf, even_wi, even_thr, odd_wi, odd_thr, mat_wi, ends);
+	ends.read();
+	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
+	maxpool.compute(24, 24, 16, odd_buf, even_buf);
+	ends.read();
+	conv.compute(12, 12, 16, 16, odd_wi, odd_thr, even_buf, odd_buf);
+	maxpool.compute(8, 8, 16, odd_buf, even_buf);
+	ends.read();
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
