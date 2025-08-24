@@ -156,6 +156,18 @@ void compute_result(int out[CLASS],
 	matmul0.compute_and_write_result(out, matb, even_sob);
 }
 
+void input_stream(const int in[256], const int matmul0_weight[10 * 256], fifo<int8_t>& ins) {
+    for (int i = 0; i < CLASS * FLATTEN; i++) {
+#pragma HLS unroll factor=16 skip_exit_check
+        ins.write(matmul0_weight[i]);
+    }
+
+    for (int i = 0; i < FLATTEN; i++) {
+#pragma HLS unroll factor=16 skip_exit_check
+        ins.write(in[i]);
+    }
+}
+
 void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
@@ -169,16 +181,7 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 	sob<block_mat_t> mat_sob;
 
 #pragma HLS dataflow
-    for (int i = 0; i < CLASS * FLATTEN; i++) {
-#pragma HLS unroll factor=16 skip_exit_check
-        ins.write(matmul0_weight[i]);
-    }
-
-    for (int i = 0; i < FLATTEN; i++) {
-#pragma HLS unroll factor=16 skip_exit_check
-        ins.write(in[i]);
-    }
-
+    input_stream(in, matmul0_weight, ins);
 	read_input<4,4,16,10,256,16>(ins, mat_sob, even_sob);
 	compute_result(out, mat_sob, even_sob, odd_sob);
 }
