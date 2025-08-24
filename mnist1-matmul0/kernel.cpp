@@ -68,7 +68,7 @@ public:
 				for (int k = 0; k < K; k++) {
 #pragma HLS unroll
 					int8_t val = ins.read();
-					(*mat[j * CL + i])[k] = val;
+					mat[j * CL + i][k] = val;
 				}
 			}
 		}
