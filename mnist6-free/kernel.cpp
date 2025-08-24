@@ -374,7 +374,7 @@ class MaxPool2x2 {
 private:
 	using T = int_t<C>;
 
-	void maxpool(const int c, const T& v1, const T& v2, T& ov) {
+	void maxpool(const int c, const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
 			if (z >= c) break;
@@ -392,8 +392,8 @@ private:
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T& val1 = inbL[y * WIDTH + x];
-				T& val2 = inbL[y * WIDTH + x + 1];
+				T val1 = inbL[y * WIDTH + x];
+				T val2 = inbL[y * WIDTH + x + 1];
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -419,7 +419,7 @@ private:
 			for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 				if (x >= ow) break;
-				T& val1 = buf[x];
+				T val1 = buf[x];
 				T val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
@@ -453,11 +453,11 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT& vu = inbL[y * WIDTH + x];
+				IT vu = inbL[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-					IT& wi = matL[ptr++];
+					IT wi = matL[ptr++];
 					int16_t acc = muladd<K>(vu, wi);
 					oval[i] = acc;
 				}
