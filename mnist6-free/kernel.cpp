@@ -298,7 +298,7 @@ private:
 #pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + PD) * (h + PD * 2) + PD) break;
-			T& val;
+			T val;
 			if (0 - (KN - 1) + PD <= x && x < w - (KN - 1) + PD
 				&& 0 - (KN - 1) + PD <= y && y < h - (KN - 1) + PD)
 			{
@@ -335,7 +335,7 @@ private:
 			if (y >= h - (KN - 1)) break;
 			for (int x = 0; x < W - (KN - 1); x++) {
 				if (x >= w - (KN - 1)) break;
-				WT& val = pips.read();
+				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
@@ -390,8 +390,8 @@ private:
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T val1 = inb[y * WIDTH + x];
-				T val2 = inb[y * WIDTH + x + 1];
+				T& val1 = inbL[y * WIDTH + x];
+				T& val2 = inbL[y * WIDTH + x + 1];
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -418,7 +418,7 @@ private:
 #pragma HLS pipeline
 				if (x >= ow) break;
 				T& val1 = buf[x];
-				T& val2 = pips.read();
+				T val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
 				outbL[y * WIDTH + x] = oval;
