@@ -103,17 +103,6 @@ const int FLATTEN = 256;
 const int CLASS = 10;
 const int CHUNK_SIZE = 16;
 
-using uint4_t = ap_uint<4>;
-using uint6_t = ap_uint<6>;
-using data_t = int_t<CHANNEL>;
-using block_data_t = data_t[HEIGHT * WIDTH];
-using win_t = hls::vector<data_t, KERNEL * KERNEL>;
-
-template <typename T>
-using fifo = hls::stream<T>;
-template <typename T>
-using sob = hls::stream_of_blocks<T>;
-
 template <int N, int W = 4>
 class int_t {
 private:
@@ -136,6 +125,17 @@ public:
 		return buf_(W * index + W - 1, W * index);
 	}
 };
+
+using uint4_t = ap_uint<4>;
+using uint6_t = ap_uint<6>;
+using data_t = int_t<CHANNEL>;
+using block_data_t = data_t[HEIGHT * WIDTH];
+using win_t = hls::vector<data_t, KERNEL * KERNEL>;
+
+template <typename T>
+using fifo = hls::stream<T>;
+template <typename T>
+using sob = hls::stream_of_blocks<T>;
 
 uint4_t mul64(const uint6_t i) {
 	static const uint4_t table[] = {
