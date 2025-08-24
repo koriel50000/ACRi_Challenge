@@ -705,6 +705,7 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
     hls::write_lock<block_thr_t> odd_thrL(odd_thr);
     hls::write_lock<block_mat_t> mat_wiL(mat_wi);
 
+#pragma HLS dataflow
 	int ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
@@ -791,7 +792,6 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 
 	fifo<bool> ends("ends_fifo");
 
-#pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
 	    odd_wi, odd_thr, mat_wi, ends);
 	compute(out, even_buf, odd_buf, even_wi, even_thr,
