@@ -243,7 +243,7 @@ private:
 		}
 	}
 
-	void insert_bottom_row(T& value) {
+	void insert_bottom_row(T value) {
 #pragma HLS inline
 		buf_[width_ * (KN - 1) - 1] = value;
 	}
@@ -258,12 +258,12 @@ private:
 public:
 	LineBuffer(int w = W) : width_(w) {}
 
-	void insert_linebuf(const T& v) {
+	void insert_linebuf(const T v) {
 		shift_pixels_up();
 		insert_bottom_row(v);
 	}
 
-	void slide_window(const T& v) {
+	void slide_window(const T v) {
 		T rows[KN];
 #pragma HLS array_partition variable=rows
 
@@ -453,7 +453,7 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT& vu = inb[y * WIDTH + x];
+				IT& vu = inbL[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
