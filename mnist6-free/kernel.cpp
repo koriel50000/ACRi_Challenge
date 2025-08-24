@@ -130,6 +130,9 @@ using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
 using data_t = int_t<CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH];
+using block_conv_t = data_t[FILTER * KERNEL * KERNEL];
+using block_thr_t = int16_t[FILTER][THRESHOLD];
+using block_mat_t = data_t[CLASS * FLATTEN / CHUNK_SIZE];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
 
 template <typename T>
@@ -177,7 +180,7 @@ int16_t muladd(const int_t<N> vu, const int_t<N> wi) {
 	return t[0];
 }
 
-uint4_t batch_norm(const int16_t acc, const int thr[], bool relu) {
+uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 // 	static const uint4_t indexTable[] = {
 // 		0, 1, 2, 4, 7, 3, 6, 5,
 // 	};
@@ -483,31 +486,11 @@ public:
 };
 
 template <int H, int W, int C, typename T>
-void read_input(const int in[H * W * C], T inb[]) {
-	int ptr = 0;
-	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
-#pragma HLS pipeline
-			T val;
-			for (int z = 0; z < C; z++) {
-#pragma HLS unroll
-				val[z] = in[ptr++] * 8 - 4;
-			}
-			inb[y * WIDTH + x] = val;
-		}
-	}
-}
-
-void kernel(int in[HEIGHT * WIDTH], int out[1]) {
-#pragma HLS interface axis port=in
-#pragma HLS interface axis port=out
-#pragma HLS array_partition variable=in cyclic factor=WIDTH
-
-	static block_data_t even_buf;
-	static block_data_t odd_buf;
-#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
-
+void read_input(const int in[H * W * C], block_data_t& even_buf,
+    block_conv_t& even_wi, block_thr_t& even_thr,
+    block_conv_t& odd_wi, block_thr_t& odd_thr,
+    block_mat_t& mat_wi)
+{
 	static data_t conv0_wi[FILTER * KERNEL * KERNEL] = {
 I4(0xa), I4(0x6), I4(0x5), I4(0xc), I4(0xb), I4(0x5), I4(0x5), I4(0x5), I4(0xd), I4(0xb), I4(0x5), I4(0x3), I4(0x1), I4(0x4), I4(0xc), I4(0x5), I4(0xa), I4(0xc), I4(0xd), I4(0xe), I4(0x5), I4(0xa), I4(0xc), I4(0xd), I4(0xe),
 I4(0xd), I4(0xb), I4(0x4), I4(0xa), I4(0xd), I4(0xc), I4(0xc), I4(0xe), I4(0xd), I4(0xe), I4(0xd), I4(0xd), I4(0x9), I4(0xb), I4(0xd), I4(0xe), I4(0xb), I4(0x1), I4(0x3), I4(0x3), I4(0x5), I4(0x1), I4(0x5), I4(0xb), I4(0x5),
@@ -526,7 +509,7 @@ I4(0x2), I4(0xc), I4(0xb), I4(0x2), I4(0x5), I4(0x2), I4(0xc), I4(0xd), I4(0xd),
 I4(0xd), I4(0x4), I4(0x4), I4(0x4), I4(0x1), I4(0x3), I4(0x3), I4(0x9), I4(0xa), I4(0xd), I4(0x9), I4(0xe), I4(0xe), I4(0x0), I4(0x5), I4(0x4), I4(0x5), I4(0xa), I4(0x4), I4(0x5), I4(0xd), I4(0xb), I4(0xb), I4(0x3), I4(0xf),
 I4(0xa), I4(0x0), I4(0xd), I4(0xe), I4(0xc), I4(0x3), I4(0x4), I4(0x4), I4(0xd), I4(0xe), I4(0xa), I4(0x4), I4(0x5), I4(0xd), I4(0xe), I4(0x2), I4(0x5), I4(0x5), I4(0x4), I4(0xd), I4(0xa), I4(0x9), I4(0x5), I4(0x6), I4(0x4),
 	};
-	static int conv0_thr[16][7] = {
+	static int16_t conv0_thr[FILTER][THRESHOLD] = {
 { 41, 57, 73, 90, 122, 154, 218, },
 { 164, 170, 175, 180, 191, 202, 223, },
 { 51, 67, 83, 99, 130, 162, 225, },
@@ -629,7 +612,7 @@ I4(0xb4ccb2cbc53c94c4), I4(0xdcdd42423c333b6c), I4(0x043dcc249dccd4b4), I4(0xb5b
 I4(0xaddd5da5dcb24334), I4(0xcd9e33340bc4ed45), I4(0xbccd5c0cdddbebd5), I4(0x5bbe0d44c4d4e44c), I4(0x4ccec45a94addb3b),
 I4(0x5d5d4400dd4de1da), I4(0x5e5d5544dbdce5d6), I4(0x5c1e655ca0a1caca), I4(0x353d1db3c5b3d55c), I4(0x9d0cbc6441c5446c),
 	};
-	static int conv1_thr[16][7] = {
+	static int16_t conv1_thr[FILTER][THRESHOLD] = {
 { 187, 227, 267, 307, 386, 466, 626, },
 { 71, 105, 138, 171, 238, 305, 439, },
 { 233, 275, 317, 360, 444, 528, 697, },
@@ -650,7 +633,7 @@ I4(0x5d5d4400dd4de1da), I4(0x5e5d5544dbdce5d6), I4(0x5c1e655ca0a1caca), I4(0x353
 #pragma HLS array_partition variable=conv1_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=conv1_thr
 
-	static data_t mat_wi[CLASS * FLATTEN / CHUNK_SIZE] = {
+	static data_t mat0_wi[CLASS * FLATTEN / CHUNK_SIZE] = {
 I4(0xaceddbc42dbacc24), I4(0x242edadcc4564354), I4(0xc42ddc454ca0c454), I4(0xd4ae9c424233c1cc),
 I4(0x40c4b3cad5dbdddd), I4(0x42c3b4eca3de40cd), I4(0x2ee6cd9d4c1bdde2), I4(0x354ddc94b245d5b2),
 I4(0xb9b34b4943bd0b11), I4(0xdebc4c5d4d2b59c9), I4(0xb91ddc4a3a215193), I4(0x3044a5ba44dec409),
@@ -694,14 +677,83 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 	};
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
+	int ptr = 0;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+#pragma HLS pipeline
+			T val;
+			for (int z = 0; z < C; z++) {
+#pragma HLS unroll
+				val[z] = in[ptr++] * 8 - 4;
+			}
+			even_buf[y * WIDTH + x] = val;
+		}
+	}
+
+	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
+#pragma HLS unroll factor=KERNEL*KERNEL skip_exit_check
+	    even_wi[i] = conv0_wi[i];
+	}
+	for (int j = 0; j < FILTER; j++) {
+    	for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
+	        even_thr[j][i] = conv0_thr[j][i];
+    	}
+	}
+	ends.write(true);
+
+	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
+#pragma HLS unroll factor=KERNEL*KERNEL skip_exit_check
+	    even_wi[i] = conv0_wi[i];
+	}
+	for (int j = 0; j < FILTER; j++) {
+    	for (int i = 0; i < THRESHOLD; i++) {
+#pragma HLS unroll
+	        even_thr[j][i] = conv0_thr[j][i];
+    	}
+	}
+	ends.write(true);
+
+	for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
+#pragma HLS unroll factor=FLATTEN/CHUNK_SIZE skip_exit_check
+	    mat_wi[i] = mat0_wi[i];
+	}
+	ends.write(true);
+}
+
+void kernel(int in[HEIGHT * WIDTH], int out[1]) {
+#pragma HLS interface axis port=in
+#pragma HLS interface axis port=out
+#pragma HLS array_partition variable=in cyclic factor=WIDTH
+
+	static block_data_t even_buf;
+	static block_data_t odd_buf;
+	static block_conv_t even_wi;
+	static block_thr_t even_thr;
+	static block_conv_t odd_wi;
+	static block_thr_t odd_thr;
+	static block_mat_t mat_wi;
+#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=even_thr
+#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=odd_thr
+#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
+
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	read_input<28,28,1,data_t>(in, even_buf);
-	conv.compute(28, 28, 1, 16, conv0_wi, conv0_thr, even_buf, odd_buf);
+	fifo<bool> ends("ends_fifo");
+
+	read_input<28,28,1,data_t>(in, even_buf, ends);
+	ends.read();
+	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
 	maxpool.compute(24, 24, 16, odd_buf, even_buf);
-	conv.compute(12, 12, 16, 16, conv1_wi, conv1_thr, even_buf, odd_buf);
+	ends.read();
+	conv.compute(12, 12, 16, 16, odd_wi, odd_thr, even_buf, odd_buf);
 	maxpool.compute(8, 8, 16, odd_buf, even_buf);
+	ends.read();
 	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
