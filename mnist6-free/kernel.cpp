@@ -430,7 +430,7 @@ private:
 
 public:
 	void compute(const int h, const int w, const int c,
-	    sob<block_data_t> inb, sob<block_data_t>& outb)
+	    sob<block_data_t>& inb, sob<block_data_t>& outb)
 	{
 		fifo<T> pips("pipe_fifo");
 
@@ -749,6 +749,25 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 	ends.write(true);
 }
 
+void compute(int out[1],
+    sob<block_data_t>& even_buf, sob<block_data_t>& odd_buf,
+    sob<block_conv_t>& even_wi, sob<block_thr_t>& even_thr,
+    sob<block_conv_t>& odd_wi, sob<block_thr_t>& odd_thr,
+    sob<block_mat_t>& mat_wi, fifo<bool>& ends)
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
+
+	ends.read();
+	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
+	maxpool.compute(24, 24, 16, odd_buf, even_buf);
+	ends.read();
+	conv.compute(12, 12, 16, 16, odd_wi, odd_thr, even_buf, odd_buf);
+	maxpool.compute(8, 8, 16, odd_buf, even_buf);
+	ends.read();
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
+}
+
 void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS interface axis port=in
 #pragma HLS interface axis port=out
@@ -769,21 +788,11 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
-	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
-
 	fifo<bool> ends("ends_fifo");
 
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
 	    odd_wi, odd_thr, mat_wi, ends);
-	ends.read();
-	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
-	maxpool.compute(24, 24, 16, odd_buf, even_buf);
-	ends.read();
-	conv.compute(12, 12, 16, 16, odd_wi, odd_thr, even_buf, odd_buf);
-	maxpool.compute(8, 8, 16, odd_buf, even_buf);
-	ends.read();
-	matmul0.compute_and_write_result(out, mat_wi, even_buf);
+	compute(out, even_buf, odd_buf, even_wi, even_thr,
+	    odd_wi, odd_thr, mat_wi, ends);
 }
