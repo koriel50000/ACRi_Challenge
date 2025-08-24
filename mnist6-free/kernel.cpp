@@ -746,13 +746,13 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS interface axis port=out
 #pragma HLS array_partition variable=in cyclic factor=WIDTH
 
-	static block_data_t even_buf;
-	static block_data_t odd_buf;
-	static block_conv_t even_wi;
-	static block_thr_t even_thr;
-	static block_conv_t odd_wi;
-	static block_thr_t odd_thr;
-	static block_mat_t mat_wi;
+	block_data_t even_buf;
+	block_data_t odd_buf;
+	block_conv_t even_wi;
+	block_thr_t even_thr;
+	block_conv_t odd_wi;
+	block_thr_t odd_thr;
+	block_mat_t mat_wi;
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
