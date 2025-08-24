@@ -64,7 +64,7 @@ private:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT& vu in_buf[y * WIDTH + x];
+				IT& vu = in_buf[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
@@ -119,7 +119,6 @@ void read_input(const int in[], const int matmul0_weight[],
 		for (int j = 0; j < FL / K; j++) {
 			for (int k = 0; k < K; k++) {
 #pragma HLS unroll
-				int8_t val = ins.read();
 				mat_wi[j * CL + i][k] = matmul0_weight[ptr++];
 			}
 		}
@@ -137,18 +136,6 @@ void read_input(const int in[], const int matmul0_weight[],
 	}
 
 	ends.write(true);
-}
-
-void input_stream(const int in[], const int matmul0_weight[], fifo<int8_t>& ins) {
-    for (int i = 0; i < CLASS * FLATTEN; i++) {
-#pragma HLS unroll factor=16 skip_exit_check
-        ins.write(matmul0_weight[i]);
-    }
-
-    for (int i = 0; i < FLATTEN; i++) {
-#pragma HLS unroll factor=16 skip_exit_check
-        ins.write(in[i]);
-    }
 }
 
 void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
