@@ -727,6 +727,10 @@ void compute(int out[1], block_data_t& even_buf, block_data_t& odd_buf,
     block_conv_t& odd_wi, block_thr_t& odd_thr,
     block_mat_t& mat_wi, fifo<bool>& ends)
 {
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
+
 	ends.read();
 	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
 	maxpool.compute(24, 24, 16, odd_buf, even_buf);
@@ -756,10 +760,6 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
-
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
-	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
 	fifo<bool> ends("ends_fifo");
 
