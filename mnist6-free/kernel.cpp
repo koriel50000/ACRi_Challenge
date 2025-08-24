@@ -248,7 +248,7 @@ private:
 		buf_[width_ * (KN - 1) - 1] = value;
 	}
 
-	void get_col(T& value[KN - 1]) {
+	void get_col(T value[KN - 1]) {
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
@@ -343,12 +343,12 @@ private:
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 						if (c == 1) {
-							acc += mul(val[k][0], wi[j * KN * KN + k][0]);
+							acc += mul(val[k][0], wiL[j * KN * KN + k][0]);
 						} else {
-							acc += muladd<C>(val[k], wi[j * KN * KN + k]);
+							acc += muladd<C>(val[k], wiL[j * KN * KN + k]);
 						}
 					}
-					oval[j] = batch_norm(acc, thr[j], true);
+					oval[j] = batch_norm(acc, thrL[j], true);
 				}
 				outbL[y * WIDTH + x] = oval;
 			}
@@ -390,8 +390,8 @@ private:
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T& val1 = inb[y * WIDTH + x];
-				T& val2 = inb[y * WIDTH + x + 1];
+				T val1 = inb[y * WIDTH + x];
+				T val2 = inb[y * WIDTH + x + 1];
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -697,7 +697,7 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
     hls::write_lock<block_data_t> even_bufL(even_buf);
-    hls::write_lock<block_conv_t_t> even_wiL(even_wi);
+    hls::write_lock<block_conv_t> even_wiL(even_wi);
     hls::write_lock<block_thr_t> even_thrL(even_thr);
     hls::write_lock<block_conv_t> odd_wiL(odd_wi);
     hls::write_lock<block_thr_t> odd_thrL(odd_thr);
