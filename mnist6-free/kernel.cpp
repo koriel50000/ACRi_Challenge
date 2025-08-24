@@ -722,7 +722,7 @@ I4(0xccd303cd5b430a33), I4(0x4dd4033d3adcd3ee), I4(0x31b2c4562355ed6c), I4(0x5ac
 	ends.write(true);
 }
 
-void compute(block_data_t& even_buf, block_data_t& odd_buf,
+void compute(int out[1], block_data_t& even_buf, block_data_t& odd_buf,
     block_conv_t& even_wi, block_thr_t& even_thr,
     block_conv_t& odd_wi, block_thr_t& odd_thr,
     block_mat_t& mat_wi, fifo<bool>& ends)
@@ -766,5 +766,5 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
 	    odd_wi, odd_thr, mat_wi, ends);
-	compute(even_buf, odd_buf, even_wi, even_thr, odd_wi, odd_thr, mat_wi, ends);
+	compute(out, even_buf, odd_buf, even_wi, even_thr, odd_wi, odd_thr, mat_wi, ends);
 }
