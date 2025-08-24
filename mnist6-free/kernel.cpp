@@ -754,6 +754,7 @@ void compute(int out[1],
     sob<block_conv_t>& even_wi, sob<block_thr_t>& even_thr,
     sob<block_conv_t>& odd_wi, sob<block_thr_t>& odd_thr,
     sob<block_mat_t>& mat_wi, fifo<bool>& ends)
+{
 	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 	Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
