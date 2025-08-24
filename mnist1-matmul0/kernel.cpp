@@ -20,32 +20,32 @@ const int THRESHOLD = 3;
 
 const int FLATTEN = 256;
 const int CLASS = 10;
-const int CHUNK_SIZE = 16;
-
-template <typename T>
-using fifo = hls::stream<T>;
+const int CHUNK_SIZE = 16; // == CHANNEL
 
 using data_t = hls::vector<int8_t, CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH];
+using block_mat_t = data_t[CLASS * FLATTEN / CHUNK_SIZE];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
+
+template <typename T>
+using fifo = hls::stream<T>;
 template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
-template <int N>
-int16_t muladd(const int n, const hls::vector<int8_t,N>& vu, const hls::vector<int8_t,N>& wi) {
-	static int16_t t[N];
+int16_t muladd(const int n, const data_t& vu, const data_t& wi) {
+	static int16_t t[CHANNEL];
 #pragma HLS array_partition variable=t
 
-	for (int i = 0; i < N; i++) {
+	for (int i = 0; i < CHANNEL; i++) {
 		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
 		if (i >= n) break;
 		t[i] = vu[i] * wi[i];
 	}
 
-	for (int d = 1; d < N; d *= 2) {
+	for (int d = 1; d < CHANNEL; d *= 2) {
 		if (d >= n) break;
-		for (int i = 0; i < N; i += d * 2) {
+		for (int i = 0; i < CHANNEL; i += d * 2) {
 #pragma HLS unroll
 			if (i >= n) break;
 			t[i] += t[i + d];
@@ -59,22 +59,9 @@ class Dense {
 private:
 	using IT = hls::vector<int8_t, K>;
 	using OT = hls::vector<int16_t, CL>;
-public:
-	void read(fifo<int8_t>& ins, IT mat[CL * FL / K]) {
-		int ptr = 0;
-		for (int i = 0; i < CL; i++) {
-#pragma HLS pipeline
-			for (int j = 0; j < FL / K; j++) {
-				for (int k = 0; k < K; k++) {
-#pragma HLS unroll
-					int8_t val = ins.read();
-					mat[j * CL + i][k] = val;
-				}
-			}
-		}
-	}
 
-	void flatten(const IT mat[CL * FL / K], sob<block_data_t>& inb, fifo<OT>& pips) {
+	void flatten(sob<block_mat_t>& matb, sob<block_data_t>& inb, fifo<OT>& pips) {
+	    hls::read_lock<block_mat_t> matbL(matb);
 	    hls::read_lock<block_data_t> inbL(inb);
 
 		int ptr = 0;
@@ -88,8 +75,8 @@ public:
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-					IT wi = mat[ptr++];
-					int16_t acc = muladd<K>(K, vu, wi);
+					IT wi = matbL[ptr++];
+					int16_t acc = muladd(K, vu, wi);
 					oval[i] = acc;
 				}
 				pips.write(oval);
@@ -120,11 +107,34 @@ public:
 			out[i] = acc[i];
 		}
 	}
+public:
+	void compute_and_write_result(int out[CL], sob<block_mat_t>& matb, sob<block_data_t>& inb) {
+		fifo<OT> pips("pipe_fifo");
+
+		flatten(matb, inb, pips);
+		write_result(out, pips);
+	}
 };
 
-template <int H, int W, int C, typename T>
-void read_input(fifo<int8_t>& ins, sob<block_data_t>& outb) {
+template <int H, int W, int C, int CL, int FL, int K>
+void read_input(fifo<int8_t>& ins,
+    sob<block_mat_t>& matb,
+    sob<block_data_t>& outb)
+{
+    hls::write_lock<block_mat_t> matbL(matb);
     hls::write_lock<block_data_t> outbL(outb);
+
+	for (int i = 0; i < CL; i++) {
+#pragma HLS pipeline
+			for (int j = 0; j < FL / K; j++) {
+				for (int k = 0; k < K; k++) {
+#pragma HLS unroll
+					int8_t val = ins.read();
+					matbL[j * CL + i][k] = val;
+				}
+			}
+		}
+	}
 
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
@@ -137,19 +147,16 @@ void read_input(fifo<int8_t>& ins, sob<block_data_t>& outb) {
 	}
 }
 
-void process(fifo<int8_t>& ins, int out[CLASS]) {
+void compute_result(int out[CLASS],
+    sob<block_mat_t>& matb,
+    sob<block_data_t>& even_sob,
+    sob<block_data_t>& odd_sob)
+{
     Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-	data_t mat_wi[CLASS * FLATTEN / CHUNK_SIZE];
-#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
-
-	sob<block_data_t> even_sob;
     fifo<hls::vector<int16_t, CLASS>> pips("pipe_fifo");
 
-#pragma HLS dataflow
-	matmul0.read(ins, mat_wi);
-	read_input<4,4,16,data_t>(ins, even_sob);
-	matmul0.flatten(mat_wi, even_sob, pips);
+	matmul0.flatten(matb, even_sob, pips);
 	matmul0.write_result(out, pips);
 }
 
@@ -161,6 +168,9 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS array_partition variable=out
 
     fifo<int8_t> ins;
+	sob<block_data_t> even_sob;
+	sob<block_data_t> odd_sob;
+	sob<block_mat_t> mat_sob;
 
 #pragma HLS dataflow
     for (int i = 0; i < CLASS * FLATTEN; i++) {
@@ -173,5 +183,6 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
         ins.write(in[i]);
     }
 
-    process(ins, out);
+	read_input<4,4,16,10,256,16>(ins, mat_sob, even_sob);
+	compute_result(out, mat_sob, even_sob, odd_sob);
 }
