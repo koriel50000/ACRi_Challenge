@@ -329,6 +329,8 @@ private:
 	    sob<block_conv_t>& wi, sob<block_thr_t>& thr,
 		sob<block_data_t>& outb, fifo<WT>& pips)
 	{
+        hls::read_lock<block_conv_t> wiL(wi);
+        hls::read_lock<block_thr_t> thrL(thr);
         hls::write_lock<block_data_t> outbL(outb);
 
 		for (int y = 0; y < H - (KN - 1); y++) {
