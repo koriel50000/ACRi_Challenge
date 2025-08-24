@@ -766,5 +766,5 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS dataflow
 	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
 	    odd_wi, odd_thr, mat_wi, ends);
-	compute(even_buf, odd_buf, even_wi, even_thr, dd_wi, odd_thr, mat_wi, ends);
+	compute(even_buf, odd_buf, even_wi, even_thr, odd_wi, odd_thr, mat_wi, ends);
 }
