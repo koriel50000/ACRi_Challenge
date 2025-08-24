@@ -60,19 +60,15 @@ private:
 	using IT = hls::vector<int8_t, K>;
 	using OT = hls::vector<int16_t, CL>;
 
-	void flatten(block_mat_t& mat_buf, block_data_t& in_buf, fifo<OT>& pips) {
+	void flatten(block_mat_t& mat_wi, block_data_t& in_buf, fifo<OT>& pips) {
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu;
-				for (int z = 0; z < K; z++) {
-#pragma HLS unroll
-    				vu[z] = in_buf[y * WIDTH + x][z];
-				}
+				IT& vu in_buf[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-					IT wi = mat_buf[ptr++];
+					IT& wi = mat_wi[ptr++];
 					int16_t acc = muladd(K, vu, wi);
 					oval[i] = acc;
 				}
@@ -105,33 +101,37 @@ private:
 		}
 	}
 public:
-	void compute_and_write_result(int out[CL], block_mat_t& mat_buf, block_data_t& in_buf) {
+	void compute_and_write_result(int out[CL], block_mat_t& mat_wi, block_data_t& in_buf) {
 		fifo<OT> pips("pipe_fifo");
 
-		flatten(mat_buf, in_buf, pips);
+		flatten(mat_wi, in_buf, pips);
 		write_result(out, pips);
 	}
 };
 
 template <int H, int W, int C, int CL, int FL, int K>
-void read_input(fifo<int8_t>& ins, block_mat_t& mat_buf, block_data_t& out_buf, fifo<bool>& ends) {
+void read_input(const int in[], const int matmul0_weight[],
+    block_mat_t& mat_wi, block_data_t& out_buf, fifo<bool>& ends)
+{
+    int ptr = 0;
 	for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
 		for (int j = 0; j < FL / K; j++) {
 			for (int k = 0; k < K; k++) {
 #pragma HLS unroll
 				int8_t val = ins.read();
-				mat_buf[j * CL + i][k] = val;
+				mat_wi[j * CL + i][k] = matmul0_weight[ptr++];
 			}
 		}
 	}
 
+    ptr = 0;
 	for (int y = 0; y < H; y++) {
 		for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 			for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-				out_buf[y * WIDTH + x][z] = ins.read();
+				out_buf[y * WIDTH + x][z] = in[ptr++];
 			}
 		}
 	}
@@ -158,17 +158,18 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS array_partition variable=matmul0_weight cyclic factor=16
 #pragma HLS array_partition variable=out
 
-    fifo<int8_t> ins;
     fifo<bool> ends;
 	block_data_t even_buf;
 	block_data_t odd_buf;
-	block_mat_t mat_buf;
+	block_mat_t mat_wi;
+#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
+#pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
 
     Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
 #pragma HLS dataflow
-    input_stream(in, matmul0_weight, ins);
-	read_input<4,4,16,10,256,16>(ins, mat_buf, even_buf, ends);
+	read_input<4,4,16,10,256,16>(in, matmul0_weight, mat_wi, even_buf, ends);
 	ends.read();
-	matmul0.compute_and_write_result(out, mat_buf, even_buf);
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
