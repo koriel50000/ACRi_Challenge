@@ -32,22 +32,19 @@ using fifo = hls::stream<T>;
 template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
-int16_t muladd(const int n, const data_t& vu, const data_t& wi) {
+int16_t muladd(const data_t& vu, const data_t& wi) {
 	static int16_t t[CHANNEL];
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < CHANNEL; i++) {
 		// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 #pragma HLS unroll
-		if (i >= n) break;
 		t[i] = vu[i] * wi[i];
 	}
 
 	for (int d = 1; d < CHANNEL; d *= 2) {
-		if (d >= n) break;
 		for (int i = 0; i < CHANNEL; i += d * 2) {
 #pragma HLS unroll
-			if (i >= n) break;
 			t[i] += t[i + d];
 		}
 	}
@@ -69,7 +66,7 @@ private:
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
 					IT& wi = mat_wi[ptr++];
-					int16_t acc = muladd(K, vu, wi);
+					int16_t acc = muladd(vu, wi);
 					oval[i] = acc;
 				}
 				pips.write(oval);
@@ -104,6 +101,7 @@ public:
 	void compute_and_write_result(int out[CL], block_mat_t& mat_wi, block_data_t& in_buf) {
 		fifo<OT> pips("pipe_fifo");
 
+#pragma HLS dataflow
 		flatten(mat_wi, in_buf, pips);
 		write_result(out, pips);
 	}
@@ -146,9 +144,9 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 #pragma HLS array_partition variable=out
 
     fifo<bool> ends;
-	block_data_t even_buf;
-	block_data_t odd_buf;
-	block_mat_t mat_wi;
+	static block_data_t even_buf;
+	static block_data_t odd_buf;
+	static block_mat_t mat_wi;
 #pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
 #pragma HLS array_partition variable=mat_wi cyclic factor=FLATTEN/CHUNK_SIZE
