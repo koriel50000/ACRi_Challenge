@@ -126,12 +126,11 @@ void read_input(fifo<int8_t>& ins,
 
 	for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
-			for (int j = 0; j < FL / K; j++) {
-				for (int k = 0; k < K; k++) {
+		for (int j = 0; j < FL / K; j++) {
+			for (int k = 0; k < K; k++) {
 #pragma HLS unroll
-					int8_t val = ins.read();
-					matbL[j * CL + i][k] = val;
-				}
+				int8_t val = ins.read();
+				matbL[j * CL + i][k] = val;
 			}
 		}
 	}
