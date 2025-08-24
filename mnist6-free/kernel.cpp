@@ -323,7 +323,8 @@ private:
 		}
 	}
 
-	void conv(const int h, const int w, const int c, const int f, const T wi[], const int thr[][THRESHOLD],
+	void conv(const int h, const int w, const int c, const int f,
+	    const T wi[], const int16_t thr[][THRESHOLD],
 		T outb[], fifo<WT>& pips)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
@@ -351,7 +352,7 @@ private:
 	}
 public:
 	void compute(const int h, const int w, const int c, const int f,
-		const T wi[], const int thr[][THRESHOLD], const T inb[], T outb[])
+		const T wi[], const int16_t thr[][THRESHOLD], const T inb[], T outb[])
 	{
 		fifo<WT> pips("pipe_fifo");
 
@@ -489,7 +490,7 @@ template <int H, int W, int C, typename T>
 void read_input(const int in[H * W * C], block_data_t& even_buf,
     block_conv_t& even_wi, block_thr_t& even_thr,
     block_conv_t& odd_wi, block_thr_t& odd_thr,
-    block_mat_t& mat_wi)
+    block_mat_t& mat_wi, fifo<bool>& ends)
 {
 	static data_t conv0_wi[FILTER * KERNEL * KERNEL] = {
 I4(0xa), I4(0x6), I4(0x5), I4(0xc), I4(0xb), I4(0x5), I4(0x5), I4(0x5), I4(0xd), I4(0xb), I4(0x5), I4(0x3), I4(0x1), I4(0x4), I4(0xc), I4(0x5), I4(0xa), I4(0xc), I4(0xd), I4(0xe), I4(0x5), I4(0xa), I4(0xc), I4(0xd), I4(0xe),
