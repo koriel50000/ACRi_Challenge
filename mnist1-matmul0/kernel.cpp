@@ -153,10 +153,7 @@ void compute_result(int out[CLASS],
 {
     Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-    fifo<hls::vector<int16_t, CLASS>> pips("pipe_fifo");
-
-	matmul0.flatten(matb, even_sob, pips);
-	matmul0.write_result(out, pips);
+	matmul0.compute_and_write_result(out, matb, even_sob);
 }
 
 void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
