@@ -748,7 +748,8 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 
 	fifo<bool> ends("ends_fifo");
 
-	read_input<28,28,1,data_t>(in, even_buf, ends);
+	read_input<28,28,1,data_t>(in, even_buf, even_wi, even_thr,
+	    odd_wi, odd_thr, mat_wi, ends);
 	ends.read();
 	conv.compute(28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf);
 	maxpool.compute(24, 24, 16, odd_buf, even_buf);
