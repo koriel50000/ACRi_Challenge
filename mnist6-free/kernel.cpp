@@ -105,6 +105,9 @@ const int CHUNK_SIZE = 16;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
+using data_t = int_t<CHANNEL>;
+using block_data_t = data_t[HEIGHT * WIDTH];
+using win_t = hls::vector<data_t, KERNEL * KERNEL>;
 
 template <typename T>
 using fifo = hls::stream<T>;
@@ -494,12 +497,6 @@ void read_input(const int in[H * W * C], T inb[]) {
 		}
 	}
 }
-
-using data_t = int_t<CHANNEL>;
-using block_data_t = data_t[HEIGHT * WIDTH];
-using win_t = hls::vector<data_t, KERNEL * KERNEL>;
-template <typename T>
-using sob = hls::stream_of_blocks<T>;
 
 void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 #pragma HLS interface axis port=in
