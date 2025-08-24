@@ -105,8 +105,11 @@ const int CHUNK_SIZE = 16;
 
 using uint4_t = ap_uint<4>;
 using uint6_t = ap_uint<6>;
+
 template <typename T>
 using fifo = hls::stream<T>;
+template <typename T>
+using sob = hls::stream_of_blocks<T>;
 
 template <int N, int W = 4>
 class int_t {
@@ -146,9 +149,9 @@ uint4_t mul64(const uint6_t i) {
 }
 
 int16_t mul(const uint4_t v, const uint4_t w) {
-	int16_t sign = v[3] ^ w[3];
+	ap_uint<1> sign = v[3] ^ w[3];
 	int16_t oval = mul64((v(2, 0), w(2, 0)));
-	oval = oval << ((w(1, 0) + 1) & (0 - w[2]));
+	oval = oval << ((w(1, 0) + 1) & -w[2]);
 	return (oval ^ -sign) + sign;
 }
 
