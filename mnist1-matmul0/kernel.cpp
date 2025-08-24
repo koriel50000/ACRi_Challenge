@@ -148,12 +148,6 @@ void process(fifo<int8_t>& ins, int out[CLASS]) {
 
 #pragma HLS dataflow
 	matmul0.read(ins, mat_wi);
-for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
-    for (int k = 0; k < CHANNEL; k++) {
-        printf(mat_wi[i][k] + ", ");
-    }
-    printf("\n");
-}
 	read_input<4,4,16,data_t>(ins, even_sob);
 	matmul0.flatten(mat_wi, even_sob, pips);
 	matmul0.write_result(out, pips);
@@ -168,6 +162,7 @@ void kernel(int in[256], int matmul0_weight[10 * 256], int out[10]) {
 
     fifo<int8_t> ins;
 
+#pragma HLS dataflow
     for (int i = 0; i < CLASS * FLATTEN; i++) {
 #pragma HLS unroll factor=16 skip_exit_check
         ins.write(matmul0_weight[i]);
