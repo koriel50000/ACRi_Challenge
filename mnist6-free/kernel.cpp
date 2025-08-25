@@ -765,6 +765,6 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 	read_input<28,28,1>(in, even_buf);
     read_weight1(even_wi, even_thr);
 	read_compute1(even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	read_compute2(odd_wi, odd_thr, mat_wi, even_buf, odd_buf);
+	read_compute2(odd_wi, odd_thr, mat_wi, odd_buf, even_buf);
 	write_compute3(out, mat_wi, even_buf);
 }
