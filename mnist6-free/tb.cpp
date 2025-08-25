@@ -693,7 +693,7 @@ long conv0_thr[] = {
 55, 70, 85, 100, 131, 162, 223,
 };
 
-long conv1_wi[] = {
+unsigned long conv1_wi[] = {
 0xb430a335ccda405bUL, 0xe53c45441dcb1dbbUL, 0x9ccd453bcde42540UL, 0xc34cd55c3ced3934UL, 0xb55b64c934b415c3UL,
 0x5cdde4553bd044d5UL, 0xebc445eb53231d5dUL, 0xc24cbc4eddadbdecUL, 0xc9db2cb34baa5e55UL, 0xed2c25ad4d5e53e4UL,
 0xe250dd92ec4e5c3aUL, 0xeda45a2b2c5e5d5dUL, 0x63ddc53ccc3d650cUL, 0x4dc33c35be4d6c43UL, 0xdea4cddbd5cd2455UL,
@@ -795,7 +795,7 @@ long conv1_thr[] = {
 -295, -252, -208, -165, -78, 9, 183,
 };
 
-long mat0_wi[] = {
+unsigned long mat0_wi[] = {
 0xaceddbc42dbacc24UL, 0x242edadcc4564354UL, 0xc42ddc454ca0c454UL, 0xd4ae9c424233c1ccUL,
 0x40c4b3cad5dbddddUL, 0x42c3b4eca3de40cdUL, 0x2ee6cd9d4c1bdde2UL, 0x354ddc94b245d5b2UL,
 0xb9b34b4943bd0b11UL, 0xdebc4c5d4d2b59c9UL, 0xb91ddc4a3a215193UL, 0x3044a5ba44dec409UL,
