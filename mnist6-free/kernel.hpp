@@ -1,8 +1,9 @@
 #pragma once
+#include "hls_stream.h"
 
 extern "C" {
 void kernel(
-  int in[28 * 28 * 1],
+  hls::stream<long>& ins,
   int out[1]
 );
 }
