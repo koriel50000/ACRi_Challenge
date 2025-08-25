@@ -286,7 +286,7 @@ class Conv2D {
 private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
-
+public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
 
@@ -323,9 +323,9 @@ private:
 		}
 	}
 
-	void conv(const int h, const int w, const int c, const int f,
+	void compute(const int h, const int w, const int c, const int f,
 	    block_conv_t& wi, block_thr_t& thr,
-		block_data_t& outb, fifo<WT>& pips)
+		fifo<WT>& pips, fifo<T>& outs)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
 			if (y >= h - (KN - 1)) break;
@@ -346,20 +346,9 @@ private:
 					}
 					oval[j] = batch_norm(acc, thr[j], true);
 				}
-				outb[y * WIDTH + x] = oval;
+				outs.write(oval);
 			}
 		}
-	}
-public:
-	void compute(const int h, const int w, const int c, const int f,
-        block_conv_t& wi, block_thr_t& thr,
-        block_data_t& inb, block_data_t& outb)
-	{
-		fifo<WT> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		windowize(h, w, inb, pips);
-		conv(h, w, c, f, wi, thr, outb, pips);
 	}
 };
 
@@ -375,17 +364,17 @@ private:
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
-
+public:
 	void compute_h(const int h, const int w, const int c,
-	    block_data_t& inb, fifo<T>& pips)
+	    fifo<T>& ins, fifo<T>& pips)
 	{
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T val1 = inb[y * WIDTH + x];
-				T val2 = inb[y * WIDTH + x + 1];
+				T val1 = ins.read();
+				T val2 = ins.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
 				pips.write(oval);
@@ -394,7 +383,7 @@ private:
 	}
 
 	void compute_v(const int oh, const int ow, const int c,
-	    block_data_t& outb, fifo<T>& pips)
+	    fifo<T>& outs, fifo<T>& pips)
 	{
 		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
@@ -413,20 +402,9 @@ private:
 				T val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
-				outb[y * WIDTH + x] = oval;
+				outs.write(oval);
 			}
 		}
-	}
-
-public:
-	void compute(const int h, const int w, const int c,
-	    block_data_t& inb, block_data_t& outb)
-	{
-		fifo<T> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		compute_h(h, w, c, inb, pips);
-		compute_v(h / 2, w / 2, c, outb, pips);
 	}
 };
 
@@ -435,7 +413,7 @@ class Dense {
 private:
 	using IT = int_t<K>;
 	using OT = int_t<CL,16>;
-
+public:
 	void flatten(block_mat_t& mat, block_data_t& inb, fifo<OT>& pips) {
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
@@ -481,15 +459,6 @@ private:
 			}
 		}
 		out[0] = m;
-	}
-
-public:
-	void compute_and_write_result(int out[1], block_mat_t& mat, block_data_t& inb) {
-		fifo<OT> pips("pipe_fifo");
-
-#pragma HLS dataflow
-		flatten(mat, inb, pips);
-		write_result(out, pips);
 	}
 };
 
@@ -738,17 +707,39 @@ void read_compute1(block_conv_t& cur_wi, block_thr_t& cur_thr,
     block_conv_t& next_wi, block_thr_t& next_thr,
     block_data_t& inb, block_data_t& outb)
 {
+	fifo<win_t> pips1("pipe_fifo1");
+	fifo<data_t> pips2("pipe_fifo2");
+	fifo<data_t> pips3("pipe_fifo3");
+
 #pragma HLS dataflow
     read_weight2(next_wi, next_thr);
-	conv.compute(28, 28, 1, 16, cur_wi, cur_thr, inb, outb);
+	conv.windowize(28, 28, inb, pips1);
+	conv.compute(28, 28, 1, 16, cur_wi, cur_thr, pips1, pips2);
+	maxpool.compute_h(24, 24, 16, pips2, pips3);
+	maxpool.compute_v(12, 12, 16, outb, pips3);
 }
 
 void read_compute2(block_conv_t& cur_wi, block_thr_t& cur_thr, block_mat_t& mat_wi,
     block_data_t& inb, block_data_t& outb)
 {
+	fifo<win_t> pips1("pipe_fifo1");
+	fifo<data_t> pips2("pipe_fifo2");
+	fifo<data_t> pips3("pipe_fifo3");
+
 #pragma HLS dataflow
     read_weight3(mat_wi);
-	conv.compute(12, 12, 16, 16, cur_wi, cur_thr, inb, outb);
+	conv.windowize(12, 12, inb, pips1);
+	conv.compute(12, 12, 16, 16, cur_wi, cur_thr, pips1, pips2);
+	maxpool.compute_h(8, 8, 16, pips2, pips3);
+	maxpool.compute_v(4, 4, 16, outb, pips3);
+}
+
+void write_compute3(int out[1], block_mat_t& mat_wi, block_data_t& inb) {
+    fifo<int_t<CLASS,16>> pips("pipe_fifo");
+
+#pragma HLS dataflow
+	matmul0.flatten(mat_wi, inb, pips);
+	matmul0.write_result(out, pips);
 }
 
 void kernel(int in[HEIGHT * WIDTH], int out[1]) {
@@ -774,8 +765,6 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 	read_input<28,28,1>(in, even_buf);
     read_weight1(even_wi, even_thr);
 	read_compute1(even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	maxpool.compute(24, 24, 16, odd_buf, even_buf);
 	read_compute2(odd_wi, odd_thr, mat_wi, even_buf, odd_buf);
-	maxpool.compute(8, 8, 16, odd_buf, even_buf);
-	matmul0.compute_and_write_result(out, mat_wi, even_buf);
+	write_compute3(out, mat_wi, even_buf);
 }
