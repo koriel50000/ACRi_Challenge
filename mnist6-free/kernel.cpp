@@ -383,7 +383,7 @@ public:
 	}
 
 	void compute_v(const int oh, const int ow, const int c,
-	    fifo<T>& outs, fifo<T>& pips)
+	    block_data_t& outb, fifo<T>& pips)
 	{
 		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
@@ -402,7 +402,7 @@ public:
 				T val2 = pips.read();
 				T oval;
 				maxpool(c, val1, val2, oval);
-				outs.write(oval);
+				outb[y * WIDTH + x] = oval;
 			}
 		}
 	}
