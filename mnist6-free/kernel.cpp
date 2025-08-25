@@ -162,18 +162,21 @@ int16_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int N>
-int16_t muladd(const int_t<N> vu, const int_t<N> wi) {
+int16_t muladd(const int n, const int_t<N> vu, const int_t<N> wi) {
 	static int16_t t[N];
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < N; i++) {
 #pragma HLS unroll
+		if (i >= n) break;
 		t[i] = mul(vu[i], wi[i]);
 	}
 
 	for (int d = 1; d < N; d *= 2) {
+		if (d >= n) break;
 		for (int i = 0; i < N; i += d * 2) {
 #pragma HLS unroll
+			if (i >= n) break;
 			t[i] += t[i + d];
 		}
 	}
@@ -338,11 +341,7 @@ public:
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
-						if (c == 1) {
-							acc += mul(val[k][0], wi[j * KN * KN + k][0]);
-						} else {
-							acc += muladd<C>(val[k], wi[j * KN * KN + k]);
-						}
+    					acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
 					oval[j] = batch_norm(acc, thr[j], true);
 				}
