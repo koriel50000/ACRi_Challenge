@@ -734,32 +734,21 @@ Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv;
 MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 Dense<CLASS,FLATTEN,CHUNK_SIZE,4,4> matmul0;
 
-void compute1(block_conv_t& cur_wi, block_thr_t& cur_thr,
+void read_compute1(block_conv_t& cur_wi, block_thr_t& cur_thr,
     block_conv_t& next_wi, block_thr_t& next_thr,
     block_data_t& inb, block_data_t& outb)
 {
-    static block_data_t buf;
-
 #pragma HLS dataflow
     read_weight2(next_wi, next_thr);
-	conv.compute(28, 28, 1, 16, cur_wi, cur_thr, inb, buf);
-	maxpool.compute(24, 24, 16, buf, outb);
+	conv.compute(28, 28, 1, 16, cur_wi, cur_thr, inb, outb);
 }
 
-void compute2(block_conv_t& cur_wi, block_thr_t& cur_thr, block_mat_t& mat_wi,
+void read_compute2(block_conv_t& cur_wi, block_thr_t& cur_thr, block_mat_t& mat_wi,
     block_data_t& inb, block_data_t& outb)
 {
-    static block_data_t buf;
-
 #pragma HLS dataflow
     read_weight3(mat_wi);
-	conv.compute(12, 12, 16, 16, cur_wi, cur_thr, inb, buf);
-	maxpool.compute(8, 8, 16, buf, outb);
-}
-
-void compute3(int out[1], block_mat_t& mat_wi, block_data_t& inb) {
-#pragma HLS dataflow
-	matmul0.compute_and_write_result(out, mat_wi, inb);
+	conv.compute(12, 12, 16, 16, cur_wi, cur_thr, inb, outb);
 }
 
 void kernel(int in[HEIGHT * WIDTH], int out[1]) {
@@ -784,7 +773,9 @@ void kernel(int in[HEIGHT * WIDTH], int out[1]) {
 
 	read_input<28,28,1>(in, even_buf);
     read_weight1(even_wi, even_thr);
-	compute1(even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	compute2(odd_wi, odd_thr, mat_wi, odd_buf, even_buf);
-	compute3(out, mat_wi, even_buf);
+	read_compute1(even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	maxpool.compute(24, 24, 16, odd_buf, even_buf);
+	read_compute2(odd_wi, odd_thr, mat_wi, even_buf, odd_buf);
+	maxpool.compute(8, 8, 16, odd_buf, even_buf);
+	matmul0.compute_and_write_result(out, mat_wi, even_buf);
 }
