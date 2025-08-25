@@ -323,7 +323,7 @@ public:
 		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f,
+	void compute(const int h, const int w, const int c,
 	    block_conv_t& wi, block_thr_t& thr,
 		fifo<WT>& pips, fifo<T>& outs)
 	{
@@ -335,7 +335,6 @@ public:
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
-					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 					    if (c == 1) {
@@ -357,15 +356,14 @@ class MaxPool2x2 {
 private:
 	using T = int_t<C>;
 
-	void maxpool(const int c, const T v1, const T v2, T& ov) {
+	void maxpool(const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			if (z >= c) break;
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
 public:
-	void compute_h(const int h, const int w, const int c,
+	void compute_h(const int h, const int w,
 	    fifo<T>& ins, fifo<T>& pips)
 	{
 		for (int y = 0; y < H; y++) {
@@ -376,13 +374,13 @@ public:
 				T val1 = ins.read();
 				T val2 = ins.read();
 				T oval;
-				maxpool(c, val1, val2, oval);
+				maxpool(val1, val2, oval);
 				pips.write(oval);
 			}
 		}
 	}
 
-	void compute_v(const int oh, const int ow, const int c,
+	void compute_v(const int oh, const int ow,
 	    block_data_t& outb, fifo<T>& pips)
 	{
 		static T buf[W / 2];
@@ -401,7 +399,7 @@ public:
 				T val1 = buf[x];
 				T val2 = pips.read();
 				T oval;
-				maxpool(c, val1, val2, oval);
+				maxpool(val1, val2, oval);
 				outb[y * WIDTH + x] = oval;
 			}
 		}
@@ -523,9 +521,9 @@ void read_compute1(fifo<long>& ins, block_conv_t& cur_wi, block_thr_t& cur_thr,
 #pragma HLS dataflow
     read_weight2(ins, next_wi, next_thr);
 	conv.windowize(28, 28, inb, pips1);
-	conv.compute(28, 28, 1, 16, cur_wi, cur_thr, pips1, pips2);
-	maxpool.compute_h(24, 24, 16, pips2, pips3);
-	maxpool.compute_v(12, 12, 16, outb, pips3);
+	conv.compute(28, 28, 1, cur_wi, cur_thr, pips1, pips2);
+	maxpool.compute_h(24, 24, pips2, pips3);
+	maxpool.compute_v(12, 12, outb, pips3);
 }
 
 void read_compute2(fifo<long>& ins, block_conv_t& cur_wi, block_thr_t& cur_thr, block_mat_t& mat_wi,
@@ -538,9 +536,9 @@ void read_compute2(fifo<long>& ins, block_conv_t& cur_wi, block_thr_t& cur_thr, 
 #pragma HLS dataflow
     read_weight3(ins, mat_wi);
 	conv.windowize(12, 12, inb, pips1);
-	conv.compute(12, 12, 16, 16, cur_wi, cur_thr, pips1, pips2);
-	maxpool.compute_h(8, 8, 16, pips2, pips3);
-	maxpool.compute_v(4, 4, 16, outb, pips3);
+	conv.compute(12, 12, 16, cur_wi, cur_thr, pips1, pips2);
+	maxpool.compute_h(8, 8, pips2, pips3);
+	maxpool.compute_v(4, 4, outb, pips3);
 }
 
 void write_compute3(int out[1], block_mat_t& mat_wi, block_data_t& inb) {
