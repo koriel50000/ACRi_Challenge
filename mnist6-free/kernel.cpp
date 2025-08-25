@@ -552,7 +552,7 @@ void write_compute3(int out[1], block_mat_t& mat_wi, block_data_t& inb) {
 }
 
 void kernel(fifo<long>& ins, int out[1]) {
-#pragma HLS interface axis port=in
+#pragma HLS interface axis port=ins
 #pragma HLS interface axis port=out
 
 	static block_data_t even_buf;
