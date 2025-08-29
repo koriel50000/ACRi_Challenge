@@ -3,7 +3,8 @@
  * ・weightを1bit符号＋3bit指数部の4bitで表現(0,1,2,4,8,16,32,64,NA,-1,-2,-4,-8,-16,-32,-64) * scale
  * ・バッチ正規化後のactivationを1bit符号+2bit指数部+1bit仮数部の4bitで表現
  *   (0,0.25,0.5,0.75,1.0,1.5,2.0,3.0, NA,-0.25,-0.5,-0.75,-1.0,-1.5,-2.0,-3.0)
- * ・乗算は符号なし3bitの掛け算を、6入力LUTが4個のテーブル参照とシフトで計算
+ * ・推論時は閾値を4倍で計算して、activationを整数値に変換
+ * ・乗算は符号なし3bitの掛け算をシフトで計算
  * ・演算回路は最大サイズのConv,Maxpoolを用意し、引数で行列サイズを指定して再利用(ループをbreak?範囲外は0埋め?)
  * ・conv0_wi,conv0_thr -> in -> conv1_wi,conv1_thr -> mat_wi の順にメインメモリからパラメータを転送
  * ・ダブルバッファリングで、パラメータ転送中に演算して演算結果を一時保存
@@ -140,24 +141,10 @@ using fifo = hls::stream<T>;
 template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
-uint4_t mul64(const uint6_t i) {
-	static const uint4_t table[] = {
-0, 0, 0, 0, 0, 0, 0, 0,
-0, 0, 1, 1, 1, 1, 1, 1,
-0, 1, 1, 2, 2, 2, 2, 2,
-0, 1, 2, 3, 3, 3, 3, 3,
-0, 1, 2, 4, 4, 4, 4, 4,
-0, 2, 3, 6, 6, 6, 6, 6,
-0, 2, 4, 8, 8, 8, 8, 8,
-0, 3, 6, 12, 12, 12, 12, 12,
-	};
-	return table[i];
-}
-
 int16_t mul(const uint4_t v, const uint4_t w) {
 	ap_uint<1> sign = v[3] ^ w[3];
-	int16_t oval = mul64((v(2, 0), w(2, 0)));
-	oval = oval << ((w(1, 0) + 1) & -w[2]);
+	int16_t oval = v(2, 0) * (w(2, 0) > 0);
+	oval = oval << (w(2, 0) - 1);
 	return (oval ^ -sign) + sign;
 }
 
