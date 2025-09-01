@@ -142,10 +142,15 @@ template <typename T>
 using sob = hls::stream_of_blocks<T>;
 
 int16_t mul(const uint4_t v, const uint4_t w) {
+	static const int16_t v0[] = {
+		0, 1, 2, 3, 4, 6, 8, 12,
+		0, -1, -2, -3, -4, -6, -8, -12,
+	};
+#pragma HLS array_partition variable=v
+
 	ap_uint<1> sign = v[3] ^ w[3];
-	int16_t oval = v(2, 0) * (w(2, 0) > 0);
-	oval = oval << (w(2, 0) - 1);
-	return (oval ^ -sign) + sign;
+	int16_t oval = v0[(sign, v(2, 0))] * (w(2, 0) > 0);
+	return oval << (w(2, 0) - 1);
 }
 
 template <int N>
