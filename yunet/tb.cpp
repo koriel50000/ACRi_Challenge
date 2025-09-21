@@ -4,7 +4,7 @@
 
 void input_stream(hls::stream<uint64_t>& ins) {
     for (int i = 0; i < 640 * 640; i++) {
-        ins.write(0);
+        ins.write(images[i]);
     }
 }
 
