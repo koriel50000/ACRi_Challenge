@@ -311,7 +311,7 @@ void read_input(fifo<uint64_t>& ins, block_data_t& outb) {
 	}
 }
 
-void kernel(fifo<uint64_t>& in, int out[16]) {
+void kernel(fifo<uint64_t>& ins, int out[16]) {
 #pragma HLS interface axis port=ins
 #pragma HLS interface axis port=out
 

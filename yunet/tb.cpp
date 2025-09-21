@@ -1,13 +1,10 @@
-#include <iostream>
-#include <limits>
-
 #include "kernel.hpp"
 #include "image.hpp"
 #include "params.hpp"
 
 void input_stream(hls::stream<uint64_t>& ins) {
     for (int i = 0; i < 640 * 640; i++) {
-        ins.write(images[i]);
+        ins.write(0);
     }
 }
 
@@ -20,5 +17,5 @@ int main(int argc, char** argv)
 	kernel(ins, out);
     printf("out[0]=%d\n", out[0]);
 
-	return EXIT_SUCCESS; //EXIT_FAILURE;
+	return EXIT_FAILURE; //EXIT_SUCCESS;
 }
