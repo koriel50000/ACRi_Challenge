@@ -434,7 +434,7 @@ public:
 		int16_t max = -10000;
 		int m = 0;
 		for (int i = 0; i < CL; i++) {
-#pragma HLS unroll
+#pragma HLS pipeline
 			if (acc[i] > max) {
 				max = acc[i];
 				m = i;
