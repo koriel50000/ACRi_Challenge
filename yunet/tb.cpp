@@ -5,7 +5,7 @@
 #include "image.hpp"
 #include "params.hpp"
 
-void vector_to_stream(const int input[], hls::stream<uint64_t>& ins) {
+void input_stream(hls::stream<uint64_t>& ins) {
     for (int i = 0; i < 640 * 640; i++) {
         ins.write(images[i]);
     }
