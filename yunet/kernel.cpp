@@ -349,6 +349,7 @@ void read_weight(const int f, const int c, const int kn, boolean relu,
 	ifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
 {
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
+		if (i >= f * kn * kn) break;
 		outw[i] = data_t(ins.read());
 	}
 
