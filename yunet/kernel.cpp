@@ -65,15 +65,15 @@ int16_t muladd(const int c, const int_t<C> vu, const int_t<C> wi) {
 
 	for (int i = 0; i < C; i++) {
 #pragma HLS unroll
-        if (i >= c) break;
+		if (i >= c) break;
 		t[i] = mul(vu[i], wi[i]);
 	}
 
 	for (int d = 1; d < C; d *= 2) {
-        if (d >= c) break;
+		if (d >= c) break;
 		for (int i = 0; i < C; i += d * 2) {
 #pragma HLS unroll
-            if (i >= c) break;
+			if (i >= c) break;
 			t[i] += t[i + d];
 		}
 	}
@@ -89,9 +89,9 @@ uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 	ap_uint<1> b5 = acc < thr[5];
 	ap_uint<1> b6 = acc < thr[6];
 	if (relu) {
-    	ap_uint<8> bits = (1, b6, b5, b4, b3, b2, b1, b0);
-	    // @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
-    	return __builtin_ctz(bits);
+		ap_uint<8> bits = (1, b6, b5, b4, b3, b2, b1, b0);
+		// @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
+		return __builtin_ctz(bits);
 	}
 	ap_uint<1> b7 = acc < thr[7];
 	ap_uint<1> b8 = acc < thr[8];
@@ -100,8 +100,8 @@ uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 	ap_uint<1> b11 = acc < thr[11];
 	ap_uint<1> b12 = acc < thr[12];
 	ap_uint<1> b13 = acc < thr[13];
-   	ap_uint<14> bits = (1, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0);
-   	return 7 - __builtin_ctz(bits);
+	ap_uint<14> bits = (1, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0);
+	return 7 - __builtin_ctz(bits);
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
@@ -226,8 +226,8 @@ public:
 		}
 	}
 
-	void compute(const int h, const int w, const int c, boolean relu,
-	    block_conv_t& wi, block_thr_t& thr,
+	void compute(const int h, const int w, const int c, const int f, boolean relu,
+		block_conv_t& wi, block_thr_t& thr,
 		fifo<WT>& pips, block_data_t& outb)
 	{
 		for (int y = 0; y < H - (KN - 1); y++) {
@@ -238,6 +238,7 @@ public:
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
+					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
@@ -255,8 +256,8 @@ class Conv2D1x1 {
 private:
 	using T = int_t<C>;
 public:
-	void compute(const int h, const int w, const int c, boolean relu,
-	    block_conv_t& wi, block_thr_t& thr,
+	void compute(const int h, const int w, const int c, const int f, boolean relu,
+		block_conv_t& wi, block_thr_t& thr,
 		block_data_t& inb, block_data_t& outb)
 	{
 		for (int y = 0; y < H; y++) {
@@ -267,6 +268,7 @@ public:
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
+					if (j >= f) break;
 					int16_t acc = muladd<C>(c, val, wi[j]);
 					oval[j] = batch_norm(acc, thr[j], relu);
 				}
@@ -289,7 +291,7 @@ private:
 	}
 public:
 	void compute_h(const int h, const int w,
-	    fifo<T>& ins, fifo<T>& pips)
+		fifo<T>& ins, fifo<T>& pips)
 	{
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
@@ -306,7 +308,7 @@ public:
 	}
 
 	void compute_v(const int oh, const int ow,
-	    fifo<T>& pips, block_data_t& outb)
+		fifo<T>& pips, block_data_t& outb)
 	{
 		static T buf[W / 2];
 #pragma HLS array_partition variable=buf
@@ -332,30 +334,30 @@ public:
 };
 
 void read_data(const int h, const int w, const int c,
-    ifo<uint64_t>& ins, block_data_t& outb)
+	ifo<uint64_t>& ins, block_data_t& outb)
 {
-    for (int y = 0; y < HEIGHT; y++) {
-        if (y >= h) break;
-        for (int x = 0; x < WIDTH; x++) {
-            if (x >= w) break;
-            data_t val = data_t(ins.read());
-        }
-    }
+	for (int y = 0; y < HEIGHT; y++) {
+		if (y >= h) break;
+		for (int x = 0; x < WIDTH; x++) {
+			if (x >= w) break;
+			data_t val = data_t(ins.read());
+		}
+	}
 }
 
 void read_weight(const int f, const int c, const int kn, boolean relu,
-    ifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
+	ifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
 {
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
-	    outw[i] = data_t(ins.read());
+		outw[i] = data_t(ins.read());
 	}
 
 	for (int j = 0; j < FILTER; j++) {
-	    if (j >= f) break;
-    	for (int i = 0; i < THRESHOLD; i++) {
-    	    if (relu && i >= THRESHOLD / 2) break;
-	        outh[j][i] = ins.read();
-    	}
+		if (j >= f) break;
+		for (int i = 0; i < THRESHOLD; i++) {
+			if (relu && i >= THRESHOLD / 2) break;
+			outh[j][i] = ins.read();
+		}
 	}
 }
 
@@ -364,16 +366,16 @@ Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
 MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 
 void read_compute1(fifo<uint64_t>& ins,
-    block_conv_t& cur_wi, block_thr_t& cur_thr,
-    block_conv_t& next_wi, block_thr_t& next_thr,
-    block_data_t& inb, block_data_t& outb)
+	block_conv_t& cur_wi, block_thr_t& cur_thr,
+	block_conv_t& next_wi, block_thr_t& next_thr,
+	block_data_t& inb, block_data_t& outb)
 {
 	fifo<win_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-    read_weight(16, 16, 1, false, ins, next_wi, next_thr);
-	conv.windowize(640, 640, inb, pips1);
-	conv.compute(640, 640, 16, cur_wi, cur_thr, pips1, outb);
+	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
+	conv3x3.windowize(640, 640, inb, pips1);
+	conv3x3.compute(640, 640, 3, 16, cur_wi, cur_thr, pips1, outb);
 }
 
 void kernel(fifo<uint64_t>& ins, int out[16]) {
