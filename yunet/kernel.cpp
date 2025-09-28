@@ -341,6 +341,7 @@ void read_data(const int h, const int w, const int c,
 		for (int x = 0; x < WIDTH; x++) {
 			if (x >= w) break;
 			data_t val = data_t(ins.read());
+			outb[y * WIDTH + x] = val;
 		}
 	}
 }
@@ -402,10 +403,10 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 
 int count = 0;
 float sum = 0;
-int hist[15] = 0;
+int hist[15] = {};
 for (int y = 0; y < 80; y++) {
     for (int x = 0; x < 80; x++) {
-        data_t v = even_buf[y * WIDTH + x];
+        data_t v = odd_buf[y * WIDTH + x];
         for (int z = 0; z < 16; z++) {
             int c = v[z];
             count++;
