@@ -226,7 +226,7 @@ public:
 		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f, boolean relu,
+	void compute(const int h, const int w, const int c, const int f, bool relu,
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<WT>& pips, block_data_t& outb)
 	{
@@ -256,7 +256,7 @@ class Conv2D1x1 {
 private:
 	using T = int_t<C>;
 public:
-	void compute(const int h, const int w, const int c, const int f, boolean relu,
+	void compute(const int h, const int w, const int c, const int f, bool relu,
 		block_conv_t& wi, block_thr_t& thr,
 		block_data_t& inb, block_data_t& outb)
 	{
@@ -334,7 +334,7 @@ public:
 };
 
 void read_data(const int h, const int w, const int c,
-	ifo<uint64_t>& ins, block_data_t& outb)
+	fifo<uint64_t>& ins, block_data_t& outb)
 {
 	for (int y = 0; y < HEIGHT; y++) {
 		if (y >= h) break;
@@ -345,8 +345,8 @@ void read_data(const int h, const int w, const int c,
 	}
 }
 
-void read_weight(const int f, const int c, const int kn, boolean relu,
-	ifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
+void read_weight(const int f, const int c, const int kn, bool relu,
+	fifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
 {
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
 		if (i >= f * kn * kn) break;
@@ -375,8 +375,8 @@ void read_compute1(fifo<uint64_t>& ins,
 
 #pragma HLS dataflow
 	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
-	conv3x3.windowize(640, 640, inb, pips1);
-	conv3x3.compute(640, 640, 3, 16, cur_wi, cur_thr, pips1, outb);
+	//conv3x3.windowize(640, 640, inb, pips1);
+	//conv3x3.compute(640, 640, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void kernel(fifo<uint64_t>& ins, int out[16]) {

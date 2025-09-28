@@ -1,5 +1,5 @@
-static uint64_t backbone_model0_conv1_weight[] =
-// torch.Size([16, 3, 3, 3])
+static uint64_t backbone_model0_conv1_weight[16 * 9] =
+{ // torch.Size([16, 3, 3, 3])
 	0xb4b, 0xb31, 0xb4a, 0xc4a, 0xc43, 0xc42, 0xc3a, 0xc53, 0xc42,
 	0x344, 0xbbb, 0xcdc, 0x655, 0xb30, 0xcdd, 0x555, 0x545, 0xb30,
 	0x3b4, 0x494, 0x414, 0xbd8, 0x4c2, 0x584, 0xcdb, 0xbdb, 0x3b4,
@@ -18,8 +18,8 @@ static uint64_t backbone_model0_conv1_weight[] =
 	0xccb, 0xddd, 0xccc, 0x432, 0x2b0, 0x1ab, 0x434, 0x555, 0x534,
 };
 
-static int backbone_model0_relu1_threshold[] =
-// torch.Size([16, 7])
+static int backbone_model0_relu1_threshold[16 * 7] =
+{ // torch.Size([16, 7])
 	-369, -134, 100, 334, 687, 1156, 2095,
 	414, 914, 1414, 1915, 2665, 3665, 5666,
 	-166, -2, 162, 326, 573, 902, 1560,
@@ -38,8 +38,8 @@ static int backbone_model0_relu1_threshold[] =
 	-90, 43, 177, 311, 513, 781, 1317,
 };
 
-static uint64_t backbone_model0_conv2_conv1_weight[] =
-// torch.Size([16, 1, 1, 16])
+static uint64_t backbone_model0_conv2_conv1_weight[16 * 1] =
+{ // torch.Size([16, 1, 1, 16])
 	0x815ca8aec2318a94,
 	0x5c3104b19cb4bb42,
 	0xc4223a4a243aca42,
@@ -58,8 +58,8 @@ static uint64_t backbone_model0_conv2_conv1_weight[] =
 	0xc4ab2d3a242cb2ca,
 };
 
-static int backbone_model0_conv2_quant1_threshold[] =
-// torch.Size([16, 14])
+static int backbone_model0_conv2_quant1_threshold[16 * 14] =
+{ // torch.Size([16, 14])
 	-856, -562, -415, -305, -232, -158, -85, -11, 61, 134, 208, 318, 465, 758,
 	-695, -451, -329, -237, -176, -115, -54, 6, 67, 128, 189, 281, 403, 647,
 	-313, -131, -40, 27, 73, 118, 163, 209, 254, 300, 345, 413, 504, 686,
@@ -77,3 +77,4 @@ static int backbone_model0_conv2_quant1_threshold[] =
 	-658, -439, -330, -248, -194, -139, -85, -30, 23, 78, 133, 214, 324, 542,
 	-394, -263, -198, -149, -117, -84, -52, -19, 13, 45, 78, 127, 192, 322,
 };
+
