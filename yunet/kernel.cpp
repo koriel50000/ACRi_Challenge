@@ -389,17 +389,40 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	static block_thr_t even_thr;
 	static block_conv_t odd_wi;
 	static block_thr_t odd_thr;
-#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
-#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
-#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=even_thr
-#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=odd_thr
+//#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
+//#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
+//#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
+//#pragma HLS array_partition variable=even_thr
+//#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
+//#pragma HLS array_partition variable=odd_thr
 
 	read_data(160, 160, 3, ins, even_buf);
-	//read_weight(16, 3, 3, true, ins, even_wi, even_thr);
-	//read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
+	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 
+int count = 0;
+float sum = 0;
+int hist[15] = 0;
+for (int y = 0; y < 80; y++) {
+    for (int x = 0; x < 80; x++) {
+        data_t v = even_buf[y * WIDTH + x];
+        for (int z = 0; z < 16; z++) {
+            int c = v[z];
+            count++;
+            sum += c;
+            hist[c]++;
+            if (count <= 10) {
+                printf("%d ", c);
+            }
+        }
+    }
+}
+printf("\n");
+printf("mean=%f\n", sum / count);
+for (int i = 0; i < 15; i++) {
+    printf("[%d]=%d ", i, hist[i]);
+}
+printf("\n");
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
 //		(int**)backbone_model0_relu1_threshold, true, // [16][7]
