@@ -375,8 +375,8 @@ void read_compute1(fifo<uint64_t>& ins,
 
 #pragma HLS dataflow
 	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
-	//conv3x3.windowize(640, 640, inb, pips1);
-	//conv3x3.compute(640, 640, 3, 16, true, cur_wi, cur_thr, pips1, outb);
+	conv3x3.windowize(640, 640, inb, pips1);
+	conv3x3.compute(640, 640, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void kernel(fifo<uint64_t>& ins, int out[16]) {
@@ -397,8 +397,8 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 #pragma HLS array_partition variable=odd_thr
 
 	read_data(640, 640, 3, ins, even_buf);
-	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
-	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	//read_weight(16, 3, 3, true, ins, even_wi, even_thr);
+	//read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
@@ -459,4 +459,7 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	// backbone_model1_conv1_1.compute<80,80,1,14>(pips7, pips8,
 	// backbone_model1_conv1_2.windowize(pips8, pips9);
 	// backbone_model1_conv1_2.compute<80,80,16,7>(pips9, pips10,
+	for (int i = 0; i < 16; i++) {
+		out[i] = 0;
+	}
 }
