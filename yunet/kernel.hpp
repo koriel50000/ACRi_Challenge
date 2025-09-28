@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdint.h>
 #include "hls_stream.h"
 
 extern "C" {
