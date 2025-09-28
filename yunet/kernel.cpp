@@ -3,8 +3,8 @@
 #include <hls_stream.h>
 #include <hls_vector.h>
 
-const int WIDTH = 640;
-const int HEIGHT = 640;
+const int WIDTH = 160;
+const int HEIGHT = 160;
 const int CHANNEL = 64;
 const int FILTER = 64;
 
@@ -375,8 +375,8 @@ void read_compute1(fifo<uint64_t>& ins,
 
 #pragma HLS dataflow
 	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
-	conv3x3.windowize(640, 640, inb, pips1);
-	conv3x3.compute(640, 640, 3, 16, true, cur_wi, cur_thr, pips1, outb);
+	conv3x3.windowize(160, 160, inb, pips1);
+	conv3x3.compute(160, 160, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void kernel(fifo<uint64_t>& ins, int out[16]) {
@@ -396,7 +396,7 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 #pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=odd_thr
 
-	read_data(640, 640, 3, ins, even_buf);
+	read_data(160, 160, 3, ins, even_buf);
 	//read_weight(16, 3, 3, true, ins, even_wi, even_thr);
 	//read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 
