@@ -4,8 +4,11 @@
 
 void input_stream(hls::stream<uint64_t>& ins) {
     // torch.Size([1, 3, 160, 160])
-    for (int i = 0; i < 160 * 160; i++) {
-        ins.write(images[i]);
+//    for (int i = 0; i < 160 * 160; i++) {
+//        ins.write(images[i]);
+//    }
+    for (int i = 0; i < 4 * 4; i++) {
+        ins.write(0x321);
     }
 
     // torch.Size([16, 3, 3, 3])

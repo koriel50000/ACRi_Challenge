@@ -235,6 +235,10 @@ public:
 			for (int x = 0; x < W - (KN - 1); x++) {
 				if (x >= w - (KN - 1)) break;
 				WT val = pips.read();
+for (int k = 0; k < KN * KN; k++) {
+    printf("%d ", val[k]);
+}
+printf("\n");
 				T oval;
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
@@ -243,6 +247,7 @@ public:
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
+printf("acc=%d\n", acc);
 					oval[j] = batch_norm(acc, thr[j], relu);
 				}
 				outb[y * WIDTH + x] = oval;
@@ -380,6 +385,32 @@ void read_compute1(fifo<uint64_t>& ins,
 	conv3x3.compute(160, 160, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
+void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
+    int count = 0;
+    float sum = 0;
+    int hist[15] = {};
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            data_t v = odd_buf[y * WIDTH + x];
+            for (int z = 0; z < c; z++) {
+                int c = v[z];
+                count++;
+                sum += c;
+                hist[c]++;
+                if (count <= 20) {
+                    printf("%d ", c);
+                }
+            }
+        }
+    }
+    printf("\n");
+    printf("mean=%f\n", sum / count);
+    for (int i = 0; i < 15; i++) {
+        printf("[%d]=%d ", (i < 8) ? i : 8 - i), hist[i]);
+    }
+    printf("\n");
+}
+
 void kernel(fifo<uint64_t>& ins, int out[16]) {
 #pragma HLS interface axis port=ins
 #pragma HLS interface axis port=out
@@ -397,39 +428,9 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 //#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
 //#pragma HLS array_partition variable=odd_thr
 
-	read_data(160, 160, 3, ins, even_buf);
+	read_data(4, 4, 3, ins, even_buf);
 	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
 	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-
-int count = 0;
-float sum = 0;
-int hist[15] = {};
-for (int y = 0; y < 80; y++) {
-    for (int x = 0; x < 80; x++) {
-        data_t v = odd_buf[y * 80 + x];
-        for (int z = 0; z < 16; z++) {
-            int c = v[z];
-            count++;
-            sum += c;
-            hist[c]++;
-            if (count <= 20) {
-                printf("%d ", c);
-            }
-        }
-    }
-}
-printf("\n");
-printf("mean=%f\n", sum / count);
-for (int i = 0; i < 15; i++) {
-    printf("[%d]=%d ", i, hist[i]);
-}
-printf("\n");
-//for (int j = 0; j < 16; j++) {
-//    for (int i = 0; i < 7; i++) {
-//        printf("%d ", even_thr[j][i]);
-//    }
-//}
-//printf("\n");
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
