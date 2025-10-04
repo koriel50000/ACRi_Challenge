@@ -363,7 +363,7 @@ void read_weight(const int f, const int c, const int kn, bool relu,
 	}
 }
 
-Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,3> conv3x3;
+Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,3,1> conv3x3;
 Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
 MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 
@@ -406,13 +406,13 @@ float sum = 0;
 int hist[15] = {};
 for (int y = 0; y < 80; y++) {
     for (int x = 0; x < 80; x++) {
-        data_t v = odd_buf[y * WIDTH + x];
+        data_t v = odd_buf[y * 80 + x];
         for (int z = 0; z < 16; z++) {
             int c = v[z];
             count++;
             sum += c;
             hist[c]++;
-            if (count <= 10) {
+            if (count <= 20) {
                 printf("%d ", c);
             }
         }
@@ -424,6 +424,13 @@ for (int i = 0; i < 15; i++) {
     printf("[%d]=%d ", i, hist[i]);
 }
 printf("\n");
+//for (int j = 0; j < 16; j++) {
+//    for (int i = 0; i < 7; i++) {
+//        printf("%d ", even_thr[j][i]);
+//    }
+//}
+//printf("\n");
+
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
 //		(int**)backbone_model0_relu1_threshold, true, // [16][7]
