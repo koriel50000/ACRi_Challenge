@@ -208,7 +208,7 @@ public:
 			else {
 				val = 0;
 			}
-printf("[%d][%d,%d] = ", i, x, y);
+printf("in[%d][%d,%d] = ", i, x, y);
 for (int j = 0; j < 3; j++) {
     printf("%d ", val[j].to_int());
 }
@@ -221,7 +221,7 @@ printf("\n");
 			}
 			if (0 <= x && 0 <= y && x < w && y < h && x % ST == 0 && y % ST == 0) {
 				WT oval = linebuf.get_window();
-printf("[%d][%d,%d] = ", i, x, y);
+printf("out[%d][%d,%d] = ", i, x, y);
 for (int k = 0; k < KN * KN; k++) {
     for (int j = 0; j < 3; j++) {
         printf("%d ", oval[k][j].to_int());
