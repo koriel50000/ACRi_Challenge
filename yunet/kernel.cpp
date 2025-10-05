@@ -193,8 +193,8 @@ public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
 		LineBuffer<W + PD, KN, T, WT> linebuf(w);
 
-		int x = 0 - (KN - 1);
-		int y = 0 - (KN - 1);
+		int x = 0 - (KN - 1) + PD;
+		int y = 0 - (KN - 1) + PD;
 		for (int i = 0; i < (W + PD) * (H + PD * 2) + PD; i++) {
 #pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
@@ -219,7 +219,7 @@ printf("[%d]=%d\n", i, val);
 				WT oval = linebuf.get_window();
 printf("[%d] = ");
 for (int k = 0; k < KN * KN; k++) {
-    for (int j = 0; j < c; j++) {
+    for (int j = 0; j < 3; j++) {
         printf("%d ", oval[k][j].to_int());
     }
     printf(" ");
