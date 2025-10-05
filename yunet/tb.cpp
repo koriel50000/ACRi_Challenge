@@ -8,7 +8,7 @@ void input_stream(hls::stream<uint64_t>& ins) {
 //        ins.write(images[i]);
 //    }
     for (int i = 0; i < 4 * 4; i++) {
-        ins.write(i * 256 + i * 16 + 1);
+        ins.write(i * 256 + i * 16 + i);
     }
 
     // torch.Size([16, 3, 3, 3])
