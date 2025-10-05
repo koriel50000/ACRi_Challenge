@@ -190,7 +190,7 @@ private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
 public:
-	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
+	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips, const int st = 1) {
 		LineBuffer<W + KN - 1, KN, T, WT> linebuf(w + KN - 1);
 
         int x = 0 - (KN - 1) / 2;
@@ -206,11 +206,6 @@ public:
 		    } else {
 			    val = 0;
    			}
-printf("in[%d,%d] = ", x, y);
-for (int j = 0; j < 3; j++) {
-    printf("%d ", val[j].to_int());
-}
-printf("\n");
            // buffering
    			if (i < (w + KN - 1) * (KN - 1)) {
     			linebuf.insert_linebuf(val);
@@ -218,16 +213,8 @@ printf("\n");
 			    linebuf.slide_window(val);
    			}
  			// output
-   			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y) {
+   			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y && x % st == 0 && y % st == 0) {
     			WT oval = linebuf.get_window();
-printf("out[%d,%d] = ", x, y);
-for (int k = 0; k < KN * KN; k++) {
-    for (int j = 0; j < 3; j++) {
-        printf("%d ", oval[k][j].to_int());
-    }
-    printf(" ");
-}
-printf("\n");
 	    		pips.write(oval);
 	    	}
 		    x++;
@@ -396,8 +383,8 @@ void read_compute1(fifo<uint64_t>& ins,
 
 #pragma HLS dataflow
 	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
-	conv3x3.windowize(4, 4, inb, pips1);
-	conv3x3.compute(4, 4, 3, 16, true, cur_wi, cur_thr, pips1, outb);
+	conv3x3.windowize(160, 160, inb, pips1, 2);
+	conv3x3.compute(80, 80, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
@@ -443,9 +430,10 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 //#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
 //#pragma HLS array_partition variable=odd_thr
 
-	read_data(4, 4, 3, ins, even_buf);
+	read_data(160, 160, 3, ins, even_buf);
 	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
 	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	print_data_hist()
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
