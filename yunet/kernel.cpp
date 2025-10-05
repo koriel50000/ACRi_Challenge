@@ -193,33 +193,33 @@ public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
 		LineBuffer<W + (KN - 1), KN, T, WT> linebuf(w);
 
-		for (int y = 0 - (KN - 1) / 2; y < H + (KN - 1) / 2; y++) {
-			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
-			if (y >= h + (KN - 1) / 2) break;
-		    for (int x = 0 - (KN - 1) / 2; x < W + (KN - 1) / 2; x++) {
+        int x = 0 - (KN - 1) / 2;
+        int y = 0 - (KN - 1) / 2;
+		for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
 #pragma HLS pipeline
-    			if (x >= w + (KN - 1) / 2) break;
-    			// input
-    			T val;
-	    		if (0 <= x && x < w	&& 0 <= y && y < h) {
-		    		val = inb[y * WIDTH + x];
-			    } else {
-				    val = 0;
-    			}
+			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
+			if (i >= (w + (KN - 1)) * (h + (KN - 1)) break;
+   			// input
+   			T val;
+    		if (0 <= x && x < w	&& 0 <= y && y < h) {
+	    		val = inb[y * WIDTH + x];
+		    } else {
+			    val = 0;
+   			}
 printf("in[%d,%d] = ", x, y);
 for (int j = 0; j < 3; j++) {
     printf("%d ", val[j].to_int());
 }
 printf("\n");
-                // buffering
-    			if (y < (KN - 1)) {
-	    			linebuf.insert_linebuf(val);
-		    	} else {
-				    linebuf.slide_window(val);
-    			}
-    			// output
-    			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y) {
-	    			WT oval = linebuf.get_window();
+           // buffering
+   			if (i < (w + (KN - 1)) * (KN - 1) + (KN - 1)) {
+    			linebuf.insert_linebuf(val);
+	    	} else {
+			    linebuf.slide_window(val);
+   			}
+ 			// output
+   			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y) {
+    			WT oval = linebuf.get_window();
 printf("out[%d,%d] = ", x, y);
 for (int k = 0; k < KN * KN; k++) {
     for (int j = 0; j < 3; j++) {
@@ -228,8 +228,12 @@ for (int k = 0; k < KN * KN; k++) {
     printf(" ");
 }
 printf("\n");
-		    		pips.write(oval);
-		    	}
+	    		pips.write(oval);
+	    	}
+		    x++;
+		    if (x >= w + (KN - 1) / 2) {
+                x = 0 - (KN - 1) / 2;
+		        y++;
 		    }
 		}
 	}
