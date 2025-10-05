@@ -229,10 +229,10 @@ public:
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<WT>& pips, block_data_t& outb)
 	{
-		for (int y = 0; y < H - (KN - 1); y++) {
-			if (y >= h - (KN - 1)) break;
-			for (int x = 0; x < W - (KN - 1); x++) {
-				if (x >= w - (KN - 1)) break;
+		for (int y = 0; y < H; y++) {
+			if (y >= h) break;
+			for (int x = 0; x < W; x++) {
+				if (x >= w) break;
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
@@ -376,7 +376,7 @@ void read_compute1(fifo<uint64_t>& ins,
 #pragma HLS dataflow
 	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
 	conv3x3.windowize(160, 160, inb, pips1, 2);
-	conv3x3.compute(160, 160, 3, 16, true, cur_wi, cur_thr, pips1, outb);
+	conv3x3.compute(80, 80, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
