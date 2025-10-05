@@ -208,6 +208,7 @@ public:
 			else {
 				val = 0;
 			}
+printf("[%d]=%d\n", i, val);
 			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf.insert_linebuf(val);
 			}
@@ -216,6 +217,14 @@ public:
 			}
 			if (0 <= x && 0 <= y && x % ST == 0 && y % ST == 0) {
 				WT oval = linebuf.get_window();
+printf("[%d] = ");
+for (int k = 0; k < KN * KN; k++) {
+    for (int j = 0; j < c; j++) {
+        printf("%d ", val[k][j].to_int());
+    }
+    printf(" ");
+}
+printf("\n");
 				pips.write(oval);
 			}
 			x++;
@@ -237,7 +246,7 @@ public:
 				WT val = pips.read();
 for (int k = 0; k < KN * KN; k++) {
     for (int j = 0; j < c; j++) {
-        printf("%d ", val[k][j]);
+        printf("%d ", val[k][j].to_int());
     }
     printf(" ");
 }
