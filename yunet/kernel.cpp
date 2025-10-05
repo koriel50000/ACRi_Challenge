@@ -242,7 +242,7 @@ public:
 					for (int k = 0; k < KN * KN; k++) {
 if (y == 0 && x == 0 && j == 0) {
     for (int i = 0; i < 3; i++) {
-        printf(" %d * %d ", val[k][i], wi[k][i]);
+        printf(" %d * %d ", val[k][i].to_int(), wi[k][i].to_int());
     }
 }
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
