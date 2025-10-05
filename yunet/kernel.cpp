@@ -184,44 +184,43 @@ public:
 	}
 };
 
-template <int H, int W, int C, int F, int KN, int PD = 1>
+template <int H, int W, int C, int F, int KN>
 class Conv2D {
 private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
 public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
-		LineBuffer<W + PD * 2, KN, T, WT> linebuf(w);
+		LineBuffer<W + (KN - 1), KN, T, WT> linebuf(w);
 
-		int x = 0 - (KN - 1 - PD);
-		int y = 0 - (KN - 1 - PD);
-		for (int i = 0; i < (W + PD * 2) * (H + PD * 2); i++) {
-#pragma HLS pipeline
+		for (int y = 0 - (KN - 1) / 2; y < H + (KN - 1) / 2; y++) {
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
-			if (i >= (w + PD * 2) * (h + PD * 2)) break;
-			T val;
-			if (0 - (KN - 1 - PD * 2) <= x && x < w - (KN - 1 - PD)
-				&& 0 - (KN - 1 - PD * 2) <= y && y < h - (KN - 1 - PD))
-			{
-				val = inb[(y + (KN - 1 - PD * 2)) * WIDTH + x + (KN - 1 - PD * 2)];
-			}
-			else {
-				val = 0;
-			}
-printf("in[%d][%d,%d] = ", i, x, y);
+			if (y >= h + (KN - 1) / 2) break;
+		    for (int x = 0 - (KN - 1) / 2; x < W + (KN - 1) / 2; x++) {
+#pragma HLS pipeline
+    			if (x >= w + (KN - 1) / 2) break;
+    			// input
+    			T val;
+	    		if (0 <= x && x < w	&& 0 <= y && y < h) {
+		    		val = inb[y * WIDTH + x];
+			    } else {
+				    val = 0;
+    			}
+printf("in[%d,%d] = ", x, y);
 for (int j = 0; j < 3; j++) {
     printf("%d ", val[j].to_int());
 }
 printf("\n");
-			if (i < (w + PD * 2) * (KN - 1)) {
-				linebuf.insert_linebuf(val);
-			}
-			else {
-				linebuf.slide_window(val);
-			}
-			if (0 <= x && 0 <= y && x < w && y < h) {
-				WT oval = linebuf.get_window();
-printf("out[%d][%d,%d] = ", i, x, y);
+                // buffering
+    			if (y < (w + (KN - 1)) * (KN - 1)) {
+	    			linebuf.insert_linebuf(val);
+		    	} else {
+				    linebuf.slide_window(val);
+    			}
+    			// output
+    			if (0 <= x && 0 <= y && x < w && y < h) {
+	    			WT oval = linebuf.get_window();
+printf("out[%d,%d] = ", x, y);
 for (int k = 0; k < KN * KN; k++) {
     for (int j = 0; j < 3; j++) {
         printf("%d ", oval[k][j].to_int());
@@ -229,13 +228,9 @@ for (int k = 0; k < KN * KN; k++) {
     printf(" ");
 }
 printf("\n");
-				pips.write(oval);
-			}
-			x++;
-			if (x >= w - (KN - 1 - PD * 2)) {
-				x = 0 - (KN - 1 - PD);
-				y++;
-			}
+		    		pips.write(oval);
+		    	}
+		    }
 		}
 	}
 
