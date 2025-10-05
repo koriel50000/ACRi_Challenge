@@ -200,10 +200,10 @@ public:
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + PD * 2) * (h + PD * 2)) break;
 			T val;
-			if (0 - (KN - 1 - PD) <= x && x < w - (KN - 1 - PD)
-				&& 0 - (KN - 1 - PD) <= y && y < h - (KN - 1 - PD))
+			if (0 - (KN - 1 - PD * 2) <= x && x < w - (KN - 1 - PD)
+				&& 0 - (KN - 1 - PD * 2) <= y && y < h - (KN - 1 - PD))
 			{
-				val = inb[(y + (KN - 1 - PD)) * WIDTH + x + (KN - 1 - PD)];
+				val = inb[(y + (KN - 1)) * WIDTH + x + (KN - 1 - PD)];
 			}
 			else {
 				val = 0;
@@ -232,7 +232,7 @@ printf("\n");
 				pips.write(oval);
 			}
 			x++;
-			if (x >= (w + PD * 2) - (KN - 1 - PD)) {
+			if (x >= w - (KN - 1 - PD * 2)) {
 				x = 0 - (KN - 1 - PD);
 				y++;
 			}
