@@ -236,7 +236,10 @@ public:
 				if (x >= w - (KN - 1)) break;
 				WT val = pips.read();
 for (int k = 0; k < KN * KN; k++) {
-    printf("%d ", val[k]);
+    for (int j = 0; j < c; j++) {
+        printf("%d ", val[k][j]);
+    }
+    printf(" ");
 }
 printf("\n");
 				T oval;
@@ -381,8 +384,8 @@ void read_compute1(fifo<uint64_t>& ins,
 
 #pragma HLS dataflow
 	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
-	conv3x3.windowize(160, 160, inb, pips1);
-	conv3x3.compute(160, 160, 3, 16, true, cur_wi, cur_thr, pips1, outb);
+	conv3x3.windowize(4, 4, inb, pips1);
+	conv3x3.compute(4, 4, 3, 16, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
@@ -391,7 +394,7 @@ void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
     int hist[15] = {};
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            data_t v = odd_buf[y * WIDTH + x];
+            data_t v = buf[y * WIDTH + x];
             for (int z = 0; z < c; z++) {
                 int c = v[z];
                 count++;
@@ -406,7 +409,7 @@ void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
     printf("\n");
     printf("mean=%f\n", sum / count);
     for (int i = 0; i < 15; i++) {
-        printf("[%d]=%d ", (i < 8) ? i : 8 - i), hist[i]);
+        printf("[%d]=%d ", (i < 8) ? i : 8 - i, hist[i]);
     }
     printf("\n");
 }
