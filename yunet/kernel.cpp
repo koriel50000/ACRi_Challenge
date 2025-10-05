@@ -184,14 +184,14 @@ public:
 	}
 };
 
-template <int H, int W, int C, int F, int KN, int PD = 0, int ST = 1>
+template <int H, int W, int C, int F, int KN, int PD = 1>
 class Conv2D {
 private:
 	using T = int_t<C>;
 	using WT = hls::vector<T, KN * KN>;
 public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
-		LineBuffer<W + PD, KN, T, WT> linebuf(w);
+		LineBuffer<W + PD * 2, KN, T, WT> linebuf(w);
 
 		int x = 0 - (KN - 1 - PD);
 		int y = 0 - (KN - 1 - PD);
@@ -203,7 +203,7 @@ public:
 			if (0 - (KN - 1 - PD * 2) <= x && x < w - (KN - 1 - PD)
 				&& 0 - (KN - 1 - PD * 2) <= y && y < h - (KN - 1 - PD))
 			{
-				val = inb[(y + (KN - 1)) * WIDTH + x + (KN - 1 - PD)];
+				val = inb[(y + (KN - 1 - PD * 2)) * WIDTH + x + (KN - 1 - PD * 2)];
 			}
 			else {
 				val = 0;
@@ -219,7 +219,7 @@ printf("\n");
 			else {
 				linebuf.slide_window(val);
 			}
-			if (0 <= x && 0 <= y && x < w && y < h && x % ST == 0 && y % ST == 0) {
+			if (0 <= x && 0 <= y && x < w && y < h) {
 				WT oval = linebuf.get_window();
 printf("out[%d][%d,%d] = ", i, x, y);
 for (int k = 0; k < KN * KN; k++) {
@@ -384,7 +384,7 @@ void read_weight(const int f, const int c, const int kn, bool relu,
 	}
 }
 
-Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,3,1> conv3x3;
+Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,3> conv3x3;
 Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
 MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
 
