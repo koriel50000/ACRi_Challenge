@@ -232,7 +232,7 @@ printf("\n");
 				pips.write(oval);
 			}
 			x++;
-			if (x >= w - (KN - 1 - PD)) {
+			if (x >= (w + PD * 2) - (KN - 1 - PD)) {
 				x = 0 - (KN - 1 - PD);
 				y++;
 			}
