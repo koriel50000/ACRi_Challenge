@@ -208,7 +208,11 @@ public:
 			else {
 				val = 0;
 			}
-printf("[%d]=%d\n", i, val);
+printf("[%d] = ");
+for (int j = 0; j < 3; j++) {
+    printf("%d ", val[j].to_int());
+}
+printf("\n");
 			if (i < (w + PD) * (KN - 1) - PD) {
 				linebuf.insert_linebuf(val);
 			}
