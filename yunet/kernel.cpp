@@ -191,14 +191,14 @@ private:
 	using WT = hls::vector<T, KN * KN>;
 public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
-		LineBuffer<W + (KN - 1), KN, T, WT> linebuf(w);
+		LineBuffer<W + KN - 1, KN, T, WT> linebuf(w);
 
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
-		for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
+		for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
 #pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
-			if (i >= (w + (KN - 1)) * (h + (KN - 1)) break;
+			if (i >= (w + KN - 1) * (h + KN - 1)) break;
    			// input
    			T val;
     		if (0 <= x && x < w	&& 0 <= y && y < h) {
@@ -212,7 +212,7 @@ for (int j = 0; j < 3; j++) {
 }
 printf("\n");
            // buffering
-   			if (i < (w + (KN - 1)) * (KN - 1) + (KN - 1)) {
+   			if (i < (w + KN - 1) * (KN - 1) + (KN - 1)) {
     			linebuf.insert_linebuf(val);
 	    	} else {
 			    linebuf.slide_window(val);
