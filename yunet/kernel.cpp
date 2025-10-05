@@ -203,7 +203,7 @@ public:
 			if (0 - (KN - 1 - PD) <= x && x < w - (KN - 1 - PD)
 				&& 0 - (KN - 1 - PD) <= y && y < h - (KN - 1 - PD))
 			{
-				val = inb[(y + (KN - 1 - PD)) * WIDTH + (x + (KN - 1 - PD)];
+				val = inb[(y + (KN - 1 - PD)) * WIDTH + x + (KN - 1 - PD)];
 			}
 			else {
 				val = 0;
