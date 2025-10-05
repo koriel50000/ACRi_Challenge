@@ -220,7 +220,7 @@ printf("[%d]=%d\n", i, val);
 printf("[%d] = ");
 for (int k = 0; k < KN * KN; k++) {
     for (int j = 0; j < c; j++) {
-        printf("%d ", val[k][j].to_int());
+        printf("%d ", oval[k][j].to_int());
     }
     printf(" ");
 }
