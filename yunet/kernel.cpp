@@ -240,9 +240,17 @@ public:
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
+if (y == 0 && x == 0 && j == 0) {
+    for (int i = 0; i < 3; i++) {
+        printf(" %d * %d ", val[k][i], wi[k][i]);
+    }
+}
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
 					oval[j] = batch_norm(acc, thr[j], relu);
+if (y == 0 && x == 0 && j == 0) {
+    printf("acc=%d\n", acc);
+}
 				}
 				outb[y * WIDTH + x] = oval;
 			}
