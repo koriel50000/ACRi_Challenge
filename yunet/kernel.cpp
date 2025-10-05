@@ -212,13 +212,13 @@ for (int j = 0; j < 3; j++) {
 }
 printf("\n");
                 // buffering
-    			if (y < (w + (KN - 1)) * (KN - 1)) {
+    			if (y < (KN - 1)) {
 	    			linebuf.insert_linebuf(val);
 		    	} else {
 				    linebuf.slide_window(val);
     			}
     			// output
-    			if (0 <= x && 0 <= y && x < w && y < h) {
+    			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y) {
 	    			WT oval = linebuf.get_window();
 printf("out[%d,%d] = ", x, y);
 for (int k = 0; k < KN * KN; k++) {
