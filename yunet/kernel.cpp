@@ -191,7 +191,7 @@ private:
 	using WT = hls::vector<T, KN * KN>;
 public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<WT>& pips) {
-		LineBuffer<W + KN - 1, KN, T, WT> linebuf(w);
+		LineBuffer<W + KN - 1, KN, T, WT> linebuf(w + KN - 1);
 
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
@@ -212,7 +212,7 @@ for (int j = 0; j < 3; j++) {
 }
 printf("\n");
            // buffering
-   			if (i < (w + KN - 1) * (KN - 1) + (KN - 1)) {
+   			if (i < (w + KN - 1) * (KN - 1)) {
     			linebuf.insert_linebuf(val);
 	    	} else {
 			    linebuf.slide_window(val);
