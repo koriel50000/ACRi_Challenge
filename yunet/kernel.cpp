@@ -433,7 +433,7 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	read_data(160, 160, 3, ins, even_buf);
 	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
 	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	print_data_hist()
+	print_data_hist(80, 80, 16, odd_buf);
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
