@@ -215,6 +215,17 @@ public:
  			// output
    			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y && x % st == 0 && y % st == 0) {
     			WT oval = linebuf.get_window();
+if (x == 0 && y == 0) {
+    for (int k = 0; k < 9; k++) {
+        T v = oval[k];
+        printf("[ ");
+        for (int j = 0; j < 3; j++) {
+            printf("%d, ", v[j].to_int());
+        }
+        printf("], ");
+    }
+    printf("\n");
+}
 	    		pips.write(oval);
 	    	}
 		    x++;
@@ -241,16 +252,18 @@ public:
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 if (y == 0 && x == 0 && j == 0) {
+    printf("[ ");
     for (int i = 0; i < 3; i++) {
-        printf(" %d * %d ", val[k][i].to_int(), wi[k][i].to_int());
+        printf("%d * %d, ", val[k][i].to_int(), wi[j * KN * KN + k][i].to_int());
     }
+    printf("], ");
 }
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
-					oval[j] = batch_norm(acc, thr[j], relu);
 if (y == 0 && x == 0 && j == 0) {
-    printf("acc=%d\n", acc);
+    printf("\nacc=%d\n", acc);
 }
+					oval[j] = batch_norm(acc, thr[j], relu);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
