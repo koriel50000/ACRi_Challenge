@@ -100,7 +100,7 @@ uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 	ap_uint<1> b11 = acc < thr[11];
 	ap_uint<1> b12 = acc < thr[12];
 	ap_uint<1> b13 = acc < thr[13];
-	ap_uint<14> bits = (1, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0);
+	ap_uint<15> bits = (1, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0);
 	return 7 - __builtin_ctz(bits);
 }
 
@@ -250,6 +250,7 @@ static const int16_t w0[] = {
 	0, 1, 2, 4, 8, 16, 32, 64,
 	0, -1, -2, -4, -8, -16, -32, -64,
 };
+int hist[15] = {};
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x++) {
@@ -277,11 +278,30 @@ if (y == 0 && x == 0 && j == 0) {
 if (y == 0 && x == 0 && j == 0) {
     printf("\ntacc=%d acc=%d\n", tacc, acc);
 }
+if (acc < thr[j][0]) {
+    hist[0]++;
+} else if (acc < thr[j][1]) {
+    hist[1]++;
+} else if (acc < thr[j][2]) {
+    hist[2]++;
+} else if (acc < thr[j][3]) {
+    hist[3]++;
+} else if (acc < thr[j][4]) {
+    hist[4]++;
+} else if (acc < thr[j][5]) {
+    hist[5]++;
+} else if (acc < thr[j][6]) {
+    hist[6]++;
+}
 					oval[j] = batch_norm(acc, thr[j], relu);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
 		}
+for (int i = 0; i < 7; i++) {
+    printf("[%d]=%d ", (i < 8) ? i : 8 - i, hist[i]);
+}
+printf("\n");
 	}
 };
 
