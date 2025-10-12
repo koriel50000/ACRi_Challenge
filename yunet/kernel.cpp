@@ -213,9 +213,11 @@ public:
 			    linebuf.slide_window(val);
    			}
  			// output
-   			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y && x % st == 0 && y % st == 0) {
+   			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y
+   			    && (x - (KN - 1) / 2)) % st == 0 && (y - (KN - 1) / 2) % st == 0)
+   			{
     			WT oval = linebuf.get_window();
-if (x == 0 && y == 0) {
+if (x == 1 && y == 1) {
     for (int k = 0; k < 9; k++) {
         T v = oval[k];
         printf("[ ");
