@@ -217,17 +217,6 @@ public:
    			    && (x - (KN - 1) / 2) % st == 0 && (y - (KN - 1) / 2) % st == 0)
    			{
     			WT oval = linebuf.get_window();
-if (x == 1 && y == 1) {
-    for (int k = 0; k < 9; k++) {
-        T v = oval[k];
-        printf("[ ");
-        for (int j = 0; j < 3; j++) {
-            printf("%d, ", v[j].to_int());
-        }
-        printf("], ");
-    }
-    printf("\n");
-}
 	    		pips.write(oval);
 	    	}
 		    x++;
@@ -242,15 +231,6 @@ if (x == 1 && y == 1) {
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<WT>& pips, block_data_t& outb)
 	{
-static const int16_t v0[] = {
-	0, 1, 2, 3, 4, 6, 8, 12,
-	0, -1, -2, -3, -4, -6, -8, -12,
-};
-static const int16_t w0[] = {
-	0, 1, 2, 4, 8, 16, 32, 64,
-	0, -1, -2, -4, -8, -16, -32, -64,
-};
-int hist[15] = {};
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x++) {
@@ -261,47 +241,14 @@ int hist[15] = {};
 #pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
-int16_t tacc = 0;
 					for (int k = 0; k < KN * KN; k++) {
-if (y == 0 && x == 0 && j == 0) {
-    printf("[ ");
-    for (int i = 0; i < 3; i++) {
-        int tv = v0[val[k][i].to_int()];
-        int tw = w0[wi[j * KN * KN + k][i].to_int()];
-        tacc += tv * tw;
-        printf("%d * %d, ", tv, tw);
-    }
-    printf("], ");
-}
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
-if (y == 0 && x == 0 && j == 0) {
-    printf("\ntacc=%d acc=%d\n", tacc, acc);
-}
-if (acc < thr[j][0]) {
-    hist[0]++;
-} else if (acc < thr[j][1]) {
-    hist[1]++;
-} else if (acc < thr[j][2]) {
-    hist[2]++;
-} else if (acc < thr[j][3]) {
-    hist[3]++;
-} else if (acc < thr[j][4]) {
-    hist[4]++;
-} else if (acc < thr[j][5]) {
-    hist[5]++;
-} else if (acc < thr[j][6]) {
-    hist[6]++;
-}
 					oval[j] = batch_norm(acc, thr[j], relu);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
 		}
-for (int i = 0; i < 7; i++) {
-    printf("[%d]=%d ", (i < 8) ? i : 8 - i, hist[i]);
-}
-printf("\n");
 	}
 };
 
