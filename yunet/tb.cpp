@@ -25,6 +25,15 @@ void input_stream(hls::stream<uint64_t>& ins) {
     for (int i = 0; i < 16 * 14; i++) {
         ins.write(backbone_model0_conv2_quant1_threshold[i]);
     }
+
+    // torch.Size([16, 3, 3, 1])
+    for (int i = 0; i < 16 * 9; i++) {
+        ins.write(backbone_model0_conv2_conv2_weight[i]);
+    }
+    // torch.Size([16, 7])
+    for (int i = 0; i < 16 * 7; i++) {
+        ins.write(backbone_model0_conv2_relu2_threshold[i]);
+    }
 };
 
 int main(int argc, char** argv)
