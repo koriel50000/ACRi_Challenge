@@ -386,12 +386,9 @@ void read_compute2(fifo<uint64_t>& ins,
 	block_conv_t& next_wi, block_thr_t& next_thr,
 	block_data_t& inb, block_data_t& outb)
 {
-	fifo<win_t> pips1("pipe_fifo1");
-
 #pragma HLS dataflow
 	read_weight(16, 1, 3, true, ins, next_wi, next_thr);
-	conv3x3.windowize(80, 80, inb, pips1);
-	conv3x3.compute(80, 80, 1, 16, false, cur_wi, cur_thr, pips1, outb);
+	conv1x1.compute(80, 80, 16, 16, false, cur_wi, cur_thr, inb, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
@@ -400,22 +397,25 @@ void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
     int hist[15] = {};
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            data_t v = buf[y * WIDTH + x];
+            data_t val = buf[y * WIDTH + x];
             for (int z = 0; z < c; z++) {
-                int c = v[z];
+                int v = val[z].to_int();
                 count++;
-                sum += c;
-                hist[c]++;
+                sum += v;
+                hist[v]++;
                 if (count <= 20) {
-                    printf("%d ", c);
+                    printf("%d ", v);
                 }
             }
         }
     }
     printf("\n");
     printf("mean=%f\n", sum / count);
-    for (int i = 0; i < 15; i++) {
-        printf("[%d]=%d ", (i < 8) ? i : 8 - i, hist[i]);
+    for (int i = 9; i < 16; i++) {
+        printf("[%d]=%d ", i - 16, hist[i]);
+    }
+    for (int i = 0; i < 8; i++) {
+        printf("[%d]=%d ", i, hist[i]);
     }
     printf("\n");
 }
@@ -440,7 +440,7 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	read_data(160, 160, 3, ins, even_buf);
 	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
 	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	read_compute2(ins, odd_wi, odd_thr, even_wi, even_thr, add_buf, even_buf);
+	read_compute2(ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
 	print_data_hist(80, 80, 16, even_buf);
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
