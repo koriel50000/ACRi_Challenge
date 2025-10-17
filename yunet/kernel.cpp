@@ -101,7 +101,7 @@ uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 	ap_uint<1> b12 = acc < thr[12];
 	ap_uint<1> b13 = acc < thr[13];
 	ap_uint<15> bits = (1, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0);
-	return 7 - __builtin_ctz(bits);
+	return __builtin_ctz(bits) - 7;
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
@@ -411,8 +411,8 @@ void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
     }
     printf("\n");
     printf("mean=%f\n", sum / count);
-    for (int i = 9; i < 16; i++) {
-        printf("[%d]=%d ", i - 16, hist[i]);
+    for (int i = 15; i > 8; --i) {
+        printf("[%d]=%d ", 8 - i, hist[i]);
     }
     for (int i = 0; i < 8; i++) {
         printf("[%d]=%d ", i, hist[i]);
