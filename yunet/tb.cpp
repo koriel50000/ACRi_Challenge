@@ -55,5 +55,5 @@ int main(int argc, char** argv)
 	kernel(ins, out);
     printf("out[0]=%d\n", out[0]);
 
-	return EXIT_SUCCESS;
+	return EXIT_FAILURE; // EXIT_SUCCESS;
 }
