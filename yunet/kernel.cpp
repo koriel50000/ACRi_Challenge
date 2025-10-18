@@ -385,7 +385,7 @@ void read_weight(const int f, const int c, const int kn,
 
 Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,3> conv3x3;
 Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
-MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool;
+MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool2x2;
 
 void read_compute_conv3x3_stride(const int h, const int w, const int c, const int f,
     const int nf, const int nc, const int nkn,
@@ -432,11 +432,11 @@ void read_compute_conv1x1(const int h, const int w, const int c, const int f,
 void compute_maxpool2x2(const int h, const int w, const int c,
 	block_data_t& inb, block_data_t& outb)
 {
-	fifo<win_t> pips1("pipe_fifo1");
+	fifo<data_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	maxpool.compute_h(h, w, c, inb, pips1);
-	maxpool.compute_v(h / 2, w / 2, c, pips1, outb);
+	maxpool2x2.compute_h(h, w, c, inb, pips1);
+	maxpool2x2.compute_v(h / 2, w / 2, c, pips1, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
