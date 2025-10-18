@@ -398,7 +398,22 @@ void read_compute_conv3x3_stride(const int h, const int w, const int c, const in
 #pragma HLS dataflow
 	read_weight(nf, nc, nkn, ins, next_wi, next_thr);
 	conv3x3.windowize(h, w, inb, pips1, 2);
-	conv3x3.compute(h / 2, w / 2, c, f, cur_wi, cur_thr, pips1, outb);
+	conv3x3.compute(h / 2, w / 2, c, f, true, cur_wi, cur_thr, pips1, outb);
+}
+
+void read_compute_conv3x3_relu(const int h, const int w, const int c, const int f,
+    const int nf, const int nc, const int nkn,
+    fifo<uint64_t>& ins,
+	block_conv_t& cur_wi, block_thr_t& cur_thr,
+	block_conv_t& next_wi, block_thr_t& next_thr,
+	block_data_t& inb, block_data_t& outb)
+{
+	fifo<win_t> pips1("pipe_fifo1");
+
+#pragma HLS dataflow
+	read_weight(nf, nc, nkn, ins, next_wi, next_thr);
+	conv3x3.windowize(h, w, inb, pips1);
+	conv3x3.compute(h, w, c, f, true, cur_wi, cur_thr, pips1, outb);
 }
 
 void read_compute_conv1x1(const int h, const int w, const int c, const int f,
@@ -467,6 +482,8 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(80, 80, 16, 16, 16, 1, 3,
 	    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
+	read_compute_conv3x3_relu(80, 80, 16, 1, 16, 16, 1,
+	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 	print_data_hist(80, 80, 16, even_buf);
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
