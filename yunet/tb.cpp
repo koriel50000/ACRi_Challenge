@@ -3,7 +3,7 @@
 #include "params.hpp"
 
 void threshold_padding_zero(hls::stream<uint64_t>& ins, int i) {
-    if (i & 7 == 6) {
+    if (i % 7 == 6) {
         for (int j = 0; j < 7; j++) {
             ins.write(0);
         }

@@ -1,5 +1,5 @@
 target_clock_period_ns=2
-vitis_version=2022.1
+vitis_version=2024.1
 csim_timeout=5m
 hls_timeout=30m
 cosim_timeout=60m

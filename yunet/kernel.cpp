@@ -444,12 +444,12 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	static block_thr_t even_thr;
 	static block_conv_t odd_wi;
 	static block_thr_t odd_thr;
-#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
-#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
-#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=even_thr
-#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=odd_thr
+#pragma HLS bind_storage variable=even_buf type=ram1p impl=bram
+#pragma HLS bind_storage variable=odd_buf type=ram1p impl=bram
+#pragma HLS bind_storage variable=even_wi type=ram1p impl=bram
+#pragma HLS bind_storage variable=even_thr type=ram1p impl=bram
+#pragma HLS bind_storage variable=odd_wi type=ram1p impl=bram
+#pragma HLS bind_storage variable=odd_thr type=ram1p impl=bram
 
 	read_data(160, 160, 3, ins, even_buf);
 	read_weight(16, 3, 3, ins, even_wi, even_thr);
