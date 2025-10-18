@@ -303,31 +303,32 @@ class MaxPool2x2 {
 private:
 	using T = int_t<C>;
 
-	void maxpool(const T v1, const T v2, T& ov) {
+	void maxpool(const int c, const T v1, const T v2, T& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
+			if (z >= c) break;
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
 public:
-	void compute_h(const int h, const int w,
-		fifo<T>& ins, fifo<T>& pips)
+	void compute_h(const int h, const int w, const int c,
+		block_data_t& inb, fifo<T>& pips)
 	{
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
-				T val1 = ins.read();
-				T val2 = ins.read();
+				T val1 = inb[y * WIDTH + x];
+				T val2 = inb[y * WIDTH + x + 1];
 				T oval;
-				maxpool(val1, val2, oval);
+				maxpool(c, val1, val2, oval);
 				pips.write(oval);
 			}
 		}
 	}
 
-	void compute_v(const int oh, const int ow,
+	void compute_v(const int oh, const int ow, const int oc,
 		fifo<T>& pips, block_data_t& outb)
 	{
 		static T buf[W / 2];
@@ -346,7 +347,7 @@ public:
 				T val1 = buf[x];
 				T val2 = pips.read();
 				T oval;
-				maxpool(val1, val2, oval);
+				maxpool(oc, val1, val2, oval);
 				outb[y * WIDTH + x] = oval;
 			}
 		}
@@ -428,6 +429,16 @@ void read_compute_conv1x1(const int h, const int w, const int c, const int f,
 	conv1x1.compute(h, w, c, f, cur_wi, cur_thr, inb, outb);
 }
 
+void compute_maxpool2x2(const int h, const int w, const int c,
+	block_data_t& inb, block_data_t& outb)
+{
+	fifo<win_t> pips1("pipe_fifo1");
+
+#pragma HLS dataflow
+	maxpool.compute_h(h, w, c, inb, pips1);
+	maxpool.compute_v(h / 2, w / 2, c, outb, pips1);
+}
+
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
     int count = 0;
     float sum = 0;
@@ -484,22 +495,8 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
 	read_compute_conv3x3_relu(80, 80, 16, 1, 16, 16, 1,
 	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	print_data_hist(80, 80, 16, even_buf);
-
-//	compute_conv2d<4, 16>(buf4f, buf16b,
-//		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
-//		(int**)backbone_model0_relu1_threshold, true, // [16][7]
-//		320, 320, 160, 160, 3, 1, 2);
-	//compute_conv2d_1x1<16, 1>(buf16b, buf1f,
-	//	(int_t<4,16>**)backbone_model0_conv2_conv1_weight, // [16][1]
-	//	(int**)backbone_model0_conv2_quant1_threshold, false, // [16][14]
-	//	160, 160);
-	//compute_conv2d<1, 16>(buf1f, buf16b,
-	//	(int_t<4,1>**)backbone_model0_conv2_conv2_weight, // [16][9]
-	//	(int**)backbone_model0_conv2_relu2_threshold, true, // [16][7]
-	//	160, 160, 160, 160, 3, 1);
-	//compute_maxpool_2x2<16>(buf16b, buf16f,
-	//	160, 160);
+	compute_maxpool2x2(80, 80, 16, odd_buf, even_buf);
+	print_data_hist(40, 40, 16, even_buf);
 
 	//compute_conv2d_1x1<16, 1>(buf16f, buf1b,
 	//	(int_t<4,16>**)backbone_model1_conv1_conv1_weight, // [16][1]
