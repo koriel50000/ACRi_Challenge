@@ -2,6 +2,14 @@
 #include "image.hpp"
 #include "params.hpp"
 
+void threshold_padding_zero(hls::stream<uint64_t>& ins, int i) {
+    if (i & 7 == 6) {
+        for (int j = 0; j < 7; j++) {
+            ins.write(0);
+        }
+    }
+}
+
 void input_stream(hls::stream<uint64_t>& ins) {
     // torch.Size([1, 3, 160, 160])
     for (int i = 0; i < 160 * 160; i++) {
@@ -15,6 +23,7 @@ void input_stream(hls::stream<uint64_t>& ins) {
     // torch.Size([16, 7])
     for (int i = 0; i < 16 * 7; i++) {
         ins.write(backbone_model0_relu1_threshold[i]);
+        threshold_padding_zero(ins, i);
     }
 
     // torch.Size([16, 1, 1, 16])
@@ -33,6 +42,7 @@ void input_stream(hls::stream<uint64_t>& ins) {
     // torch.Size([16, 7])
     for (int i = 0; i < 16 * 7; i++) {
         ins.write(backbone_model0_conv2_relu2_threshold[i]);
+        threshold_padding_zero(ins, i);
     }
 };
 

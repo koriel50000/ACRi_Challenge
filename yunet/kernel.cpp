@@ -80,7 +80,20 @@ int16_t muladd(const int c, const int_t<C> vu, const int_t<C> wi) {
 	return t[0];
 }
 
-uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
+uint4_t batch_norm_relu(const int16_t acc, const int16_t thr[]) {
+	ap_uint<1> b0 = acc < thr[0];
+	ap_uint<1> b1 = acc < thr[1];
+	ap_uint<1> b2 = acc < thr[2];
+	ap_uint<1> b3 = acc < thr[3];
+	ap_uint<1> b4 = acc < thr[4];
+	ap_uint<1> b5 = acc < thr[5];
+	ap_uint<1> b6 = acc < thr[6];
+	ap_uint<8> bits = (1, b6, b5, b4, b3, b2, b1, b0);
+	// @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
+	return __builtin_ctz(bits);
+}
+
+uint4_t batch_norm(const int16_t acc, const int16_t thr[]) {
 	static const uint4_t indexTable[] = {
 		7, 6, 5, 2, 4, 10, 1, 12, 0, 3, 9, 11, 15, 0, 14, 13
 	};
@@ -93,11 +106,6 @@ uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 	ap_uint<1> b4 = acc < thr[4];
 	ap_uint<1> b5 = acc < thr[5];
 	ap_uint<1> b6 = acc < thr[6];
-	if (relu) {
-		ap_uint<8> bits = (1, b6, b5, b4, b3, b2, b1, b0);
-		// @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
-		return __builtin_ctz(bits);
-	}
 	ap_uint<1> b7 = acc < thr[7];
 	ap_uint<1> b8 = acc < thr[8];
 	ap_uint<1> b9 = acc < thr[9];
@@ -203,7 +211,7 @@ public:
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
 		for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + KN - 1) * (h + KN - 1)) break;
    			// input
@@ -234,7 +242,7 @@ public:
 		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f, bool relu,
+	void compute(const int h, const int w, const int c, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<WT>& pips, block_data_t& outb)
 	{
@@ -245,13 +253,13 @@ public:
 				WT val = pips.read();
 				T oval;
 				for (int j = 0; j < F; j++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
-					oval[j] = batch_norm(acc, thr[j], relu);
+					oval[j] = batch_norm_relu(acc, thr[j]);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
@@ -264,7 +272,7 @@ class Conv2D1x1 {
 private:
 	using T = int_t<C>;
 public:
-	void compute(const int h, const int w, const int c, const int f, bool relu,
+	void compute(const int h, const int w, const int c, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		block_data_t& inb, block_data_t& outb)
 	{
@@ -275,10 +283,10 @@ public:
 				T val = inb[y * WIDTH + x];
 				T oval;
 				for (int j = 0; j < F; j++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = muladd<C>(c, val, wi[j]);
-					oval[j] = batch_norm(acc, thr[j], relu);
+					oval[j] = batch_norm(acc, thr[j]);
 				}
 				outb[y * WIDTH + x] = oval;
 			}
@@ -324,12 +332,12 @@ public:
 		for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
-#pragma HLS pipeline
+//#pragma HLS pipeline
 				if (x >= ow) break;
 				T val1 = buf[x];
 				T val2 = pips.read();
@@ -354,7 +362,7 @@ void read_data(const int h, const int w, const int c,
 	}
 }
 
-void read_weight(const int f, const int c, const int kn, bool relu,
+void read_weight(const int f, const int c, const int kn,
 	fifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
 {
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
@@ -365,7 +373,6 @@ void read_weight(const int f, const int c, const int kn, bool relu,
 	for (int j = 0; j < FILTER; j++) {
 		if (j >= f) break;
 		for (int i = 0; i < THRESHOLD; i++) {
-			if (relu && i >= THRESHOLD / 2) break;
 			outh[j][i] = ins.read();
 		}
 	}
@@ -383,9 +390,9 @@ void read_compute1(fifo<uint64_t>& ins,
 	fifo<win_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	read_weight(16, 16, 1, false, ins, next_wi, next_thr);
+	read_weight(16, 16, 1, ins, next_wi, next_thr);
 	conv3x3.windowize(160, 160, inb, pips1, 2);
-	conv3x3.compute(80, 80, 3, 16, true, cur_wi, cur_thr, pips1, outb);
+	conv3x3.compute(80, 80, 3, 16, cur_wi, cur_thr, pips1, outb);
 }
 
 void read_compute2(fifo<uint64_t>& ins,
@@ -394,8 +401,8 @@ void read_compute2(fifo<uint64_t>& ins,
 	block_data_t& inb, block_data_t& outb)
 {
 #pragma HLS dataflow
-	read_weight(16, 1, 3, true, ins, next_wi, next_thr);
-	conv1x1.compute(80, 80, 16, 16, false, cur_wi, cur_thr, inb, outb);
+	read_weight(16, 1, 3, ins, next_wi, next_thr);
+	conv1x1.compute(80, 80, 16, 16, cur_wi, cur_thr, inb, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
@@ -437,15 +444,15 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	static block_thr_t even_thr;
 	static block_conv_t odd_wi;
 	static block_thr_t odd_thr;
-//#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
-//#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
-//#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
-//#pragma HLS array_partition variable=even_thr
-//#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
-//#pragma HLS array_partition variable=odd_thr
+#pragma HLS array_partition variable=even_buf cyclic factor=CHUNK_SIZE
+#pragma HLS array_partition variable=odd_buf cyclic factor=CHUNK_SIZE
+#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=even_thr
+#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
+#pragma HLS array_partition variable=odd_thr
 
 	read_data(160, 160, 3, ins, even_buf);
-	read_weight(16, 3, 3, true, ins, even_wi, even_thr);
+	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 	read_compute2(ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
 	print_data_hist(80, 80, 16, even_buf);
