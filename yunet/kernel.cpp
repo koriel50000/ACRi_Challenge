@@ -81,6 +81,11 @@ int16_t muladd(const int c, const int_t<C> vu, const int_t<C> wi) {
 }
 
 uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
+	static const uint4_t indexTable[] = {
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+	};
+#pragma HLS array_partition variable=indexTable
+
 	ap_uint<1> b0 = acc < thr[0];
 	ap_uint<1> b1 = acc < thr[1];
 	ap_uint<1> b2 = acc < thr[2];
@@ -100,8 +105,10 @@ uint4_t batch_norm(const int16_t acc, const int16_t thr[], bool relu) {
 	ap_uint<1> b11 = acc < thr[11];
 	ap_uint<1> b12 = acc < thr[12];
 	ap_uint<1> b13 = acc < thr[13];
-	ap_uint<15> bits = (1, b13, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1, b0);
-	return __builtin_ctz(bits) - 7;
+	ap_uint<15> bits = (0, b0, b1, b2, b3, b4, b5, b6, b7, b8, b0, b10, b11, b12, b13);
+	// @see HD, Figure 5-26. Number of trailing zeros using a de Brujin cycle.
+	// https://en.wikipedia.org/wiki/De_Bruijn_sequence
+	return indexTable[((bits + 1) * 0x09af)(15, 12)];
 }
 
 template <int ROWS, int COLS, typename T, typename WT>
