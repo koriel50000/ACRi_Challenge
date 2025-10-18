@@ -154,9 +154,8 @@ private:
 	int width_;
 
 	void shift_pixels_up() {
-#pragma HLS inline
 		for (int i = 0; i < W * (KN - 1) - 1; i++) {
-#pragma HLS unroll
+#pragma HLS pipeline
 			buf_[i] = buf_[i + 1];
 		}
 	}
@@ -332,12 +331,12 @@ public:
 		for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= ow) break;
 				T val1 = buf[x];
 				T val2 = pips.read();
@@ -444,18 +443,18 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	static block_thr_t even_thr;
 	static block_conv_t odd_wi;
 	static block_thr_t odd_thr;
-#pragma HLS bind_storage variable=even_buf type=ram1p impl=bram
-#pragma HLS bind_storage variable=odd_buf type=ram1p impl=bram
-#pragma HLS bind_storage variable=even_wi type=ram1p impl=bram
-#pragma HLS bind_storage variable=even_thr type=ram1p impl=bram
-#pragma HLS bind_storage variable=odd_wi type=ram1p impl=bram
-#pragma HLS bind_storage variable=odd_thr type=ram1p impl=bram
+#pragma HLS bind_storage variable=even_buf type=ram_1p impl=bram
+#pragma HLS bind_storage variable=odd_buf type=ram_1p impl=bram
+#pragma HLS bind_storage variable=even_wi type=ram_1p impl=bram
+#pragma HLS bind_storage variable=even_thr type=ram_1p impl=bram
+#pragma HLS bind_storage variable=odd_wi type=ram_1p impl=bram
+#pragma HLS bind_storage variable=odd_thr type=ram_1p impl=bram
 
 	read_data(160, 160, 3, ins, even_buf);
 	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	read_compute1(ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 	read_compute2(ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
-	print_data_hist(80, 80, 16, even_buf);
+	//print_data_hist(80, 80, 16, even_buf);
 
 //	compute_conv2d<4, 16>(buf4f, buf16b,
 //		(int_t<4,4>**)backbone_model0_conv1_weight, // [16][9]
