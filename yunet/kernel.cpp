@@ -436,7 +436,7 @@ void compute_maxpool2x2(const int h, const int w, const int c,
 
 #pragma HLS dataflow
 	maxpool.compute_h(h, w, c, inb, pips1);
-	maxpool.compute_v(h / 2, w / 2, c, outb, pips1);
+	maxpool.compute_v(h / 2, w / 2, c, pips1, outb);
 }
 
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
