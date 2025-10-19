@@ -11,12 +11,12 @@ void threshold_padding_zero(hls::stream<uint64_t>& ins, int i) {
 }
 
 void input_stream(hls::stream<uint64_t>& ins) {
-	// Conv_head
-
     // torch.Size([1, 3, 160, 160])
     for (int i = 0; i < 160 * 160; i++) {
         ins.write(images[i]);
     }
+
+	// Conv_head
 
     // torch.Size([16, 3, 3, 3])
     for (int i = 0; i < 16 * 9; i++) {
@@ -49,6 +49,8 @@ void input_stream(hls::stream<uint64_t>& ins) {
         threshold_padding_zero(ins, i);
     }
 
+	// YuNetBackbone Conv4layerBlock 1
+
     // torch.Size([16, 1, 1, 16])
     for (int i = 0; i < 16 * 1; i++) {
         ins.write(backbone_model1_conv1_conv1_weight[i]);
@@ -58,6 +60,47 @@ void input_stream(hls::stream<uint64_t>& ins) {
         ins.write(backbone_model1_conv1_quant1_threshold[i]);
     }
 
+    // torch.Size([16, 3, 3, 1])
+    for (int i = 0; i < 16 * 9; i++) {
+        ins.write(backbone_model1_conv1_conv2_weight[i]);
+    }
+    // torch.Size([16, 7])
+    for (int i = 0; i < 16 * 7; i++) {
+        ins.write(backbone_model1_conv1_relu2_threshold[i]);
+        threshold_padding_zero(ins, i);
+    }
+
+	// YuNetBackbone Conv4layerBlock 2
+
+    // torch.Size([64, 1, 1, 16])
+    for (int i = 0; i < 64 * 1; i++) {
+        ins.write(backbone_model1_conv2_conv1_weight[i]);
+    }
+    // torch.Size([64, 14])
+    for (int i = 0; i < 16 * 14; i++) {
+        ins.write(backbone_model1_conv2_quant1_threshold[i]);
+    }
+
+    // torch.Size([64, 3, 3, 1])
+    for (int i = 0; i < 64 * 9; i++) {
+        ins.write(backbone_model1_conv2_conv2_weight[i]);
+    }
+    // torch.Size([64, 7])
+    for (int i = 0; i < 64 * 7; i++) {
+        ins.write(backbone_model1_conv2_relu2_threshold[i]);
+        threshold_padding_zero(ins, i);
+    }
+
+	// YuNetBackbone Conv4layerBlock 3
+
+    // torch.Size([64, 1, 1, 64])
+    for (int i = 0; i < 64 * 1; i++) {
+        ins.write(backbone_model2_conv1_conv1_weight[i]);
+    }
+    // torch.Size([64, 14])
+    for (int i = 0; i < 64 * 14; i++) {
+        ins.write(backbone_model2_conv1_quant1_threshold[i]);
+    }
 };
 
 int main(int argc, char** argv)
