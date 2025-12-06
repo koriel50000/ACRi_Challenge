@@ -491,22 +491,22 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 	read_compute_conv3x3_stride(160, 160, 3, 16, 16, 16, 1,
 	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 	// Conv_head ConvDPUnit
-	read_compute_conv1x1(80, 80, 16, 16, 16, 1, 3,
-	    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
-	read_compute_conv3x3_relu(80, 80, 16, 1, 16, 16, 1,
-	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	//read_compute_conv1x1(80, 80, 16, 16, 16, 1, 3,
+	//    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
+	//read_compute_conv3x3_relu(80, 80, 16, 1, 16, 16, 1,
+	//    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 	// YuNetBackbone
-	compute_maxpool2x2(80, 80, 16, odd_buf, even_buf);
+	//compute_maxpool2x2(80, 80, 16, odd_buf, even_buf);
 	// YuNetBackbone Conv4layerBlock 1
-	read_compute_conv1x1(40, 40, 16, 1, 16, 1, 3,
-	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	read_compute_conv3x3_relu(40, 40, 16, 1, 64, 16, 1,
-	    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
+	//read_compute_conv1x1(40, 40, 16, 1, 16, 1, 3,
+	//    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	//read_compute_conv3x3_relu(40, 40, 16, 1, 64, 16, 1,
+	//    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
 	// YuNetBackbone Conv4layerBlock 2
-	read_compute_conv1x1(40, 40, 16, 1, 64, 1, 3,
-	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
-	read_compute_conv3x3_relu(40, 40, 16, 64, 64, 64, 1,
-	    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
+	//read_compute_conv1x1(40, 40, 16, 1, 64, 1, 3,
+	//    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
+	//read_compute_conv3x3_relu(40, 40, 16, 64, 64, 64, 1,
+	//    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
 //	// YuNetBackbone Conv4layerBlock 3
 //	read_compute_conv1x1(40, 40, 16, 64, 64, 1, 3,
 //	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
@@ -517,7 +517,7 @@ void kernel(fifo<uint64_t>& ins, int out[16]) {
 //	    ins, even_wi, even_thr, odd_wi, odd_thr, even_buf, odd_buf);
 //	read_compute_conv3x3_relu(40, 40, 64, 64, 64, 64, 1,
 //	    ins, odd_wi, odd_thr, even_wi, even_thr, odd_buf, even_buf);
-	print_data_hist(40, 40, 64, even_buf);
+	print_data_hist(80, 80, 16, odd_buf);
 
 	//compute_conv2d_1x1<16, 1>(buf16f, buf1b,
 	//	(int_t<4,16>**)backbone_model1_conv1_conv1_weight, // [16][1]
