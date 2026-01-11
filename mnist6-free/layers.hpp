@@ -14,7 +14,7 @@ const int FILTER = 16;
 const int KERNEL = 3;
 const int THRESHOLD = 14;
 
-const int FLATTEN = 768;
+const int FLATTEN = 784;
 const int CLASS = 10;
 const int CHUNK_SIZE = 16;  // == FILTER
 

@@ -115,7 +115,6 @@ void read_weight(const int f, const int c, const int kn,
 		if (i >= f * kn * kn) break;
 		outw[i] = data_t(ins.read());
 	}
-    printf("\n");
 
 	for (int j = 0; j < FILTER; j++) {
 		if (j >= f) break;
@@ -123,7 +122,6 @@ void read_weight(const int f, const int c, const int kn,
 			outh[j][i] = ins.read();
 		}
 	}
-    printf("\n");
 }
 
 void read_mat_weight(fifo<uint64_t>& ins, block_mat_t& mat_wi) {
@@ -219,13 +217,12 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 	read_compute_conv3x3_stride(
 	    14, 14, 1, 16, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, 1, ins, odd_wi, odd_thr);
-print_data_hist(14, 14, 16, odd_buf);
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
 	    16, 3, 3, ins, even_wi, even_thr);
 	read_compute_conv3x3_relu(
-	    14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
+		14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
 	    ins, mat_wi);
 	// YuNetBackbone
 	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
