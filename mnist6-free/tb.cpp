@@ -23,21 +23,21 @@ void vector_to_stream(const int input[], hls::stream<uint64_t>& ins) {
         ins.write(input[i]);
     }
 
-//    for (int i = 0; i < 16 * 9; i++) {
-//        ins.write(conv1_weight[i]);
-//    }
-//    for (int i = 0; i < 16 * 7; i++) {
-//        ins.write(relu1_threshold[i]);
-//        threshold_padding_zero(ins, i);
-//    }
-//
-//    for (int i = 0; i < 16 * 1; i++) {
-//        ins.write(conv2_weight[i]);
-//    }
-//    for (int i = 0; i < 16 * 14; i++) {
-//        ins.write(quant2_threshold[i]);
-//    }
-//
+    for (int i = 0; i < 16 * 9; i++) {
+        ins.write(conv1_weight[i]);
+    }
+    for (int i = 0; i < 16 * 7; i++) {
+        ins.write(relu1_threshold[i]);
+        threshold_padding_zero(ins, i);
+    }
+
+    for (int i = 0; i < 16 * 1; i++) {
+        ins.write(conv2_weight[i]);
+    }
+    for (int i = 0; i < 16 * 14; i++) {
+        ins.write(quant2_threshold[i]);
+    }
+
 //    for (int i = 0; i < 16 * 9; i++) {
 //        ins.write(conv3_weight[i]);
 //    }
