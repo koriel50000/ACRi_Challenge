@@ -18,7 +18,7 @@ void threshold_padding_zero(hls::stream<uint64_t>& ins, int i) {
     }
 }
 
-void vector_to_stream(const int input[], hls::stream<uint64_t>& ins) {
+void array_to_stream(const int input[], hls::stream<uint64_t>& ins) {
     for (int i = 0; i < 28 * 28; i++) {
         ins.write(input[i]);
     }
@@ -68,8 +68,8 @@ int main(int argc, char** argv)
     int out[N][1];
     for (int i = 0; i < N; i++) {
         hls::stream<uint64_t> ins;
-        vector_to_stream(input[i], ins);
-        kernel(ins, out[i]);
+        array_to_stream(input[i], ins);
+        kernel_inner(ins, out[i]);
     }
 
     int match_count = 0;
