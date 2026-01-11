@@ -114,7 +114,6 @@ void read_weight(const int f, const int c, const int kn,
 	for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
 		if (i >= f * kn * kn) break;
 		outw[i] = data_t(ins.read());
-		printf("%0x ", outw[i].to_int());
 	}
     printf("\n");
 
@@ -122,7 +121,6 @@ void read_weight(const int f, const int c, const int kn,
 		if (j >= f) break;
 		for (int i = 0; i < THRESHOLD; i++) {
 			outh[j][i] = ins.read();
-     		printf("%d ", outh[j][i]);
 		}
 	}
     printf("\n");

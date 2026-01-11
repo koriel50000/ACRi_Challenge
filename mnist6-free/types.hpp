@@ -24,4 +24,8 @@ public:
 		assert(index < N);
 		return buf_(W * index + W - 1, W * index);
 	}
+
+    unsigned long to_ulong() const {
+        return buf.to_ulong();
+    }
 };
