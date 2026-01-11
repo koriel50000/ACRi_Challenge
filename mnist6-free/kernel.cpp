@@ -73,8 +73,8 @@ void read_input(const int h, const int w, const int c,
 		if (y >= h) break;
 		for (int x = 0; x < WIDTH; x++) {
 			if (x >= w) break;
-			data_t val = data_t(ins.read());
-			outb[y * WIDTH + x] = 12 - val * 8;
+			data_t val = data_t(12 - ins.read() * 8);
+			outb[y * WIDTH + x] = val;
 		}
 	}
 }
