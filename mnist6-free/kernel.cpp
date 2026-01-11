@@ -37,31 +37,31 @@ class CNV(nn.Module):
 
 -- common.py --
 class Fp4e3m0Mixin(ExtendedInjector):
-	bit_width = 4
-	exponent_bit_width = 3
-	mantissa_bit_width = 0
-	saturating = True
+    bit_width = 4
+    exponent_bit_width = 3
+    mantissa_bit_width = 0
+    saturating = True
 
 
-class CommonWeightQuant(Fp4e3m0Mixin,
-			ScaledFloatWeightBase):
+class Int4WeightQuant(Fp4e3m0Mixin,
+                      ScaledFloatWeightBase):
     scaling_per_output_type = ScalingPerOutputType.CHANNEL
 
-	@value
-	def exponent_bias(exponent_bit_width):
-		return 1
+    @value
+    def exponent_bias(exponent_bit_width):
+        return 1
 
 
-class CommonActQuant(Fp4e2m1Mixin,
-			 FloatActBase,
-			 ActQuantSolver):
-	scaling_impl_type = ScalingImplType.CONST
-	scaling_per_output_channel = False
-	restrict_scaling_type = RestrictValueType.FP
+class Int4ActQuant(Fp4e2m1Mixin,
+                   FloatActBase,
+                   ActQuantSolver):
+    scaling_impl_type = ScalingImplType.CONST
+    scaling_per_output_channel = False
+    restrict_scaling_type = RestrictValueType.FP
     zero_point_impl = ZeroZeroPoint
-	scaling_const = 1.0
-	max_val = 0.5
-	min_val = -0.5
+    scaling_const = 1
+    max_val = 0.5
+    min_val = -0.5
  */
 #include "kernel.hpp"
 #include "layers.hpp"
