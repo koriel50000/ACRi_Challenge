@@ -1,5 +1,6 @@
 #pragma once
 #include <hls_vector.h>
+#undef INLINE
 #include <hls_stream.h>
 #include "types.hpp"
 #include "arith.hpp"

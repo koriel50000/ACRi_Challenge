@@ -212,19 +212,20 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
 
 	read_data(28, 28, 1, ins, even_buf);
-	read_weight(16, 3, 3, ins, even_wi, even_thr);
+print_data_hist(28, 28, 1, even_buf);
+//	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	// Conv_head
-	read_compute_conv3x3_stride(
-	    28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf,
-	    16, 1, 1, ins, odd_wi, odd_thr);
+//	read_compute_conv3x3_stride(
+//	    28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf,
+//	    16, 1, 1, ins, odd_wi, odd_thr);
 	// Conv_head ConvDPUnit
-	read_compute_conv1x1(
-	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
-	    16, 3, 3, ins, even_wi, even_thr);
-	read_compute_conv3x3_relu(
-	    14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
-	    ins, mat_wi);
+//	read_compute_conv1x1(
+//	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
+//	    16, 3, 3, ins, even_wi, even_thr);
+//	read_compute_conv3x3_relu(
+//	    14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
+//	    ins, mat_wi);
 	// YuNetBackbone
-	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
-	compute_matmul_write(mat_wi, even_buf, out);
+//	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
+//	compute_matmul_write(mat_wi, even_buf, out);
 }
