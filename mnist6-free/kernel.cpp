@@ -69,7 +69,7 @@ class CommonActQuant(Fp4e2m1Mixin,
 void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
     int count = 0;
     float sum = 0;
-    int hist[15] = {};
+    int hist[16] = {};
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             data_t val = buf[y * WIDTH + x];
