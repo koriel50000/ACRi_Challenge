@@ -26,6 +26,6 @@ public:
 	}
 
     unsigned long to_ulong() const {
-        return buf.to_ulong();
+        return buf_.to_ulong();
     }
 };
