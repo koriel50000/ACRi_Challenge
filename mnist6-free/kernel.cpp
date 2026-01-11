@@ -192,7 +192,7 @@ void compute_matmul_write(block_mat_t& mat_wi, block_data_t& inb, int out[1]) {
 	matmul.write_result(out, pips);
 }
 
-void kernel(fifo<uint64_t>& ins, int out[1]) {
+void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS interface axis port=ins
 #pragma HLS interface axis port=out
 
