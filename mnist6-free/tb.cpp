@@ -10,7 +10,7 @@ int labels[20] = {
     7, 2, 1, 0, 4, 1, 4, 9, 5, 9, 0, 6, 9, 0, 1, 5, 9, 7, 3, 4, 
 };
 
-void threshold_padding_zero(hls::stream<long>& ins, int i) {
+void threshold_padding_zero(hls::stream<uint64_t>& ins, int i) {
     if (i % 7 == 6) {
         for (int j = 0; j < 7; j++) {
             ins.write(0);
@@ -18,7 +18,7 @@ void threshold_padding_zero(hls::stream<long>& ins, int i) {
     }
 }
 
-void vector_to_stream(const int input[], hls::stream<long>& ins) {
+void vector_to_stream(const int input[], hls::stream<uint64_t>& ins) {
     for (int i = 0; i < 28 * 28; i++) {
         ins.write(input[i]);
     }
@@ -67,7 +67,7 @@ int main(int argc, char** argv)
 
     int out[N][1];
     for (int i = 0; i < N; i++) {
-        hls::stream<long> ins;
+        hls::stream<uint64_t> ins;
         vector_to_stream(input[i], ins);
         kernel(ins, out[i]);
     }
