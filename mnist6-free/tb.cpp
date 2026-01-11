@@ -38,17 +38,17 @@ void vector_to_stream(const int input[], hls::stream<uint64_t>& ins) {
         ins.write(quant2_threshold[i]);
     }
 
-//    for (int i = 0; i < 16 * 9; i++) {
-//        ins.write(conv3_weight[i]);
-//    }
-//    for (int i = 0; i < 16 * 7; i++) {
-//        ins.write(relu3_threshold[i]);
-//        threshold_padding_zero(ins, i);
-//    }
-//
-//    for (int i = 0; i < 10 * 784 / 16; i++) {
-//        ins.write(linear_weight[i]);
-//    }
+    for (int i = 0; i < 16 * 9; i++) {
+        ins.write(conv3_weight[i]);
+    }
+    for (int i = 0; i < 16 * 7; i++) {
+        ins.write(relu3_threshold[i]);
+        threshold_padding_zero(ins, i);
+    }
+
+    for (int i = 0; i < 10 * 784 / 16; i++) {
+        ins.write(linear_weight[i]);
+    }
 }
 
 int main(int argc, char** argv)
