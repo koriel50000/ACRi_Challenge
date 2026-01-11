@@ -95,7 +95,7 @@ void read_weight(const int f, const int c, const int kn,
 	}
 }
 
-void read_mat_weight(fifo<long>& ins, block_mat_t& mat_wi) {
+void read_mat_weight(fifo<uint64_t>& ins, block_mat_t& mat_wi) {
 	for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
 	    mat_wi[i] = data_t(ins.read());
 	}

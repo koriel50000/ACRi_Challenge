@@ -190,7 +190,7 @@ public:
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
-					int16_t acc = muladd<K>(vu, wi);
+					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
 				}
 				pips.write(oval);
