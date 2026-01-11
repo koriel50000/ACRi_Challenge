@@ -64,7 +64,7 @@ class CommonActQuant(Fp4e2m1Mixin,
 	min_val = -0.5
  */
 #include "kernel.hpp"
-#include "layers.h"
+#include "layers.hpp"
 
 void read_data(const int h, const int w, const int c,
 	fifo<uint64_t>& ins, block_data_t& outb)

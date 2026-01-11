@@ -1,5 +1,5 @@
 #pragma once
-#include "types.h"
+#include "types.hpp"
 
 int16_t mul(const uint4_t v, const uint4_t w) {
 	static const int16_t v0[] = {

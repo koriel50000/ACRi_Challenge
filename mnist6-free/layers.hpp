@@ -1,9 +1,9 @@
 #pragma once
 #include <hls_vector.h>
 #include <hls_stream.h>
-#include "types.h"
-#include "arith.h"
-#include "window_buffer.h"
+#include "types.hpp"
+#include "arith.hpp"
+#include "window_buffer.hpp"
 
 const int WIDTH = 28;
 const int HEIGHT = 28;
