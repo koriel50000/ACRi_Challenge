@@ -220,7 +220,8 @@ using win = hls::vector<int, KN * KN>;
 LineBuffer<W + (KN - 1), KN, int, win> linebuf(w + (KN - 1));
 int x = 0 - (KN - 1) / 2;
 int y = 0 - (KN - 1) / 2;
-for (int i = 0; i < (w + (KN - 1)) * (h + (KN - 1)); i++) {
+for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
+  if (i >= (w + KN - 1) * (h + KN - 1)) break;
   // input
   int val;
   if (0 <= x && x < w && 0 <= y && y < h) {
