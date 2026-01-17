@@ -138,7 +138,7 @@ Dense<CLASS,FLATTEN,CHUNK_SIZE,7,7> matmul;
 void read_compute_conv3x3_stride(
     const int h, const int w, const int c, const int f,
 	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
-    const int nf, const int nc, const int nkn,
+    const int nf, const int nkn,
     fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
 {
 	fifo<win_t> pips1("pipe_fifo1");
@@ -146,19 +146,19 @@ void read_compute_conv3x3_stride(
 #pragma HLS dataflow
 	conv3x3.windowize(h, w, inb, pips1, 2);
 	conv3x3.compute(h / 2, w / 2, c, f, true, cur_wi, cur_thr, pips1, outb);
-	read_weight(nf, nc, nkn, ins, next_wi, next_thr);
+	read_weight(nf, nkn, ins, next_wi, next_thr);
 }
 
 void read_compute_conv1x1(
     const int h, const int w, const int c, const int f,
 	block_conv_t& cur_wi, block_thr_t& cur_thr,
 	block_data_t& inb, block_data_t& outb,
-    const int nf, const int nc, const int nkn,
+    const int nf, const int nkn,
     fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
 {
 #pragma HLS dataflow
 	conv1x1.compute(h, w, c, f, cur_wi, cur_thr, inb, outb);
-	read_weight(nf, nc, nkn, ins, next_wi, next_thr);
+	read_weight(nf, nkn, ins, next_wi, next_thr);
 }
 
 void read_compute_conv3x3_relu(
