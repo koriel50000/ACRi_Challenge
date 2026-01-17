@@ -238,7 +238,7 @@ for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
     win oval = linebuf.get_window();
     for (int ky = 0; ky < KN; ky++) {
       for (int kx = 0; kx < KN; kx++) {
-        printf("%d ", oval[y * KN + i]);
+        printf("[%d,%d]=%d ", x - kx, y - ky, oval[y * KN + i]);
       }
       printf("\n");
 	}
