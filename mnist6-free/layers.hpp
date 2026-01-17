@@ -194,7 +194,7 @@ int hist[16] = {};
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
 for (int z = 0; z < 16; z++) {
-  int v = vu[z].to_int();
+  int v = wi[z].to_int();
   hist[v]++;
 }
 					int16_t acc = muladd<K>(K, vu, wi);
