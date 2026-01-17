@@ -211,23 +211,25 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
 
-const int W = 10;
-const int H = 10;
+const int W = 28;
+const int H = 28;
 const int KN = 3;
+int w = 10;
+int h = 10;
 using win = hls::vector<int, KN * KN>;
-LineBuffer<W + (KN - 1), KN, int, win> linebuf(W + (KN - 1));
+LineBuffer<W + (KN - 1), KN, int, win> linebuf(w + (KN - 1));
 int x = 0 - (KN - 1) / 2;
 int y = 0 - (KN - 1) / 2;
-for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
+for (int i = 0; i < (w + (KN - 1)) * (h + (KN - 1)); i++) {
   // input
   int val;
-  if (0 <= x && x < W && 0 <= y && y < H) {
-    val = y * W + x + 1;
+  if (0 <= x && x < w && 0 <= y && y < h) {
+    val = y * w + x + 1;
   } else {
     val = 0;
   }
   // buffering
-  if (i < (W + (KN - 1)) * (KN - 1)) {
+  if (i < (w + (KN - 1)) * (KN - 1)) {
     linebuf.insert_linebuf(val);
   } else {
     linebuf.slide_window(val);
