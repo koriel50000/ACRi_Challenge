@@ -192,6 +192,7 @@ public:
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
+printf("acc=%d\n", acc);
 					oval[i] = acc;
 				}
 				pips.write(oval);
@@ -213,6 +214,7 @@ public:
 			OT val = pips.read();
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
+printf("val=%d\n", val[i]);
 				acc[i] += val[i];
 			}
 		}
