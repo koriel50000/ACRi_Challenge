@@ -216,8 +216,10 @@ const int H = 28;
 const int KN = 3;
 int w = 10;
 int h = 10;
+int st = 1;
 using win = hls::vector<int, KN * KN>;
-LineBuffer<W + (KN - 1), KN, int, win> linebuf(w + (KN - 1));
+LineBuffer<W + KN - 1, KN, int, win> linebuf(w + KN - 1);
+
 int x = 0 - (KN - 1) / 2;
 int y = 0 - (KN - 1) / 2;
 for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
@@ -236,7 +238,8 @@ for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
     linebuf.slide_window(val);
   }
   // output
-  if (1 <= x && 1 <= y)
+  if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
+    && (x - (KN - 1) / 2) % st == 0 && (y - (KN - 1) / 2) % st == 0)
   {
     win oval = linebuf.get_window();
     for (int ky = 0; ky < KN; ky++) {
