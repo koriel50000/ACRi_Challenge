@@ -211,20 +211,23 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
 
-using win = hls::vector<int,9>;
-LineBuffer<12, 3, int, win> linebuf(12);
-int x = -1;
-int y = -1;
-for (int i = 0; i < 12 * 12; i++) {
+const int W = 10;
+const int H = 10;
+const int KN = 3;
+using win = hls::vector<int, KN * KN>;
+LineBuffer<W + (KN - 1), KN, int, win> linebuf(W + (KN - 1));
+int x = 0 - (KN - 1) / 2;
+int y = 0 - (KN - 1) / 2;
+for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
   // input
   int val;
-  if (0 <= x && x < 10 && 0 <= y && y < 10) {
-    val = y * 10 + x + 1;
+  if (0 <= x && x < W && 0 <= y && y < H) {
+    val = y * W + x + 1;
   } else {
     val = 0;
   }
   // buffering
-  if (i < 12 * 2) {
+  if (i < (W + (KN - 1)) * (KN - 1)) {
     linebuf.insert_linebuf(val);
   } else {
     linebuf.slide_window(val);
@@ -233,17 +236,17 @@ for (int i = 0; i < 12 * 12; i++) {
   if (1 <= x && 1 <= y)
   {
     win oval = linebuf.get_window();
-    for (int ky = 0; ky < 3; ky++) {
-      for (int kx = 0; kx < 3; kx++) {
-        printf("%d ", oval[y * 3 + i]);
+    for (int ky = 0; ky < KN; ky++) {
+      for (int kx = 0; kx < KN; kx++) {
+        printf("%d ", oval[y * KN + i]);
       }
       printf("\n");
 	}
     printf("\n");
   }
   x++;
-  if (x >= 11) {
-    x = -1;
+  if (x >= W + (KN - 1) / 2) {
+    x = 0 - (KN - 1) / 2;
     y++;
   }
 }
