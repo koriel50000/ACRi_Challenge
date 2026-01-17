@@ -215,7 +215,7 @@ using win = hls::vector<int,9>;
 LineBuffer<12, 3, int, win> linebuf(12);
 int x = -1;
 int y = -1;
-for (int i < 0; i < 12 * 12; i++) {
+for (int i = 0; i < 12 * 12; i++) {
   // input
   int val;
   if (0 <= x && x < 10 && 0 <= y && y < 10) {
