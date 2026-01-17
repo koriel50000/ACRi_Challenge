@@ -183,8 +183,6 @@ private:
 	using OT = int_t<CL,16>;  // int16_t
 public:
 	void flatten(block_mat_t& mat, block_data_t& inb, fifo<OT>& pips) {
-int sum[10] = {};
-
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
@@ -194,18 +192,11 @@ int sum[10] = {};
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
-sum[i] += acc;
 					oval[i] = acc;
 				}
 				pips.write(oval);
 			}
 		}
-
-for (int i = 0; i < CL; i++) {
-  printf("%d ", sum[i]);
-}
-printf("\n");
-
 	}
 
 	void write_result(int out[1], fifo<OT>& pips) {
@@ -225,11 +216,6 @@ printf("\n");
 				acc[i] += val[i];
 			}
 		}
-
-for (int i = 0; i < CL; i++) {
-  printf("%d ", acc[i]);
-}
-printf("\n");
 
 		int16_t max = INT16_MIN;
 		int m = 0;
