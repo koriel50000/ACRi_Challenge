@@ -214,9 +214,7 @@ printf("acc=%d\n", acc);
 			OT val = pips.read();
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
-                int16_t v = val[i].to_int();
-printf("val=%d\n", v);
-				acc[i] += v;
+				acc[i] += val[i];
 			}
 		}
 
