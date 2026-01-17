@@ -211,6 +211,43 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
 
+using win = hls::vector<int,9>;
+LineBuffer<12, 3, int, win> linebuf(12);
+int x = -1;
+int y = -1;
+for (int i < 0; i < 12 * 12; i++) {
+  // input
+  int val;
+  if (0 <= x && x < 10 && 0 <= y && y < 10) {
+    val = y * 10 + x + 1;
+  } else {
+    val = 0;
+  }
+  // buffering
+  if (i < 12 * 2) {
+    linebuf.insert_linebuf(val);
+  } else {
+    linebuf.slide_window(val);
+  }
+  // output
+  if (0 <= x && 0 <= y && x < 10 && y < 10)
+  {
+    win oval = linebuf.get_window();
+    for (int ky = 0; ky < 3; ky++) {
+      for (int kx = 0; kx < 3; kx++) {
+        printf("%d ", oval[y * 3 + i]);
+      }
+      printf("\n");
+	}
+    printf("\n");
+  }
+  x++;
+  if (x >= 11) {
+    x = -1;
+    y++;
+  }
+}
+return;
 	read_input(28, 28, 1, ins, even_buf);
 	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	// Conv_head
