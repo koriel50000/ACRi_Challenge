@@ -128,31 +128,6 @@ void read_mat_weight(fifo<uint64_t>& ins, block_mat_t& mat_wi) {
 	for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
 	    mat_wi[i] = data_t(ins.read());
 	}
-
-    int count = 0;
-    float sum = 0;
-    int hist[16] = {};
-	for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
-        data_t val = mat_wi[i];
-        for (int z = 0; z < 16; z++) {
-            int v = val[z].to_int();
-            count++;
-            sum += v;
-            hist[v]++;
-            if (count <= 20) {
-                printf("%d ", v);
-            }
-        }
-    }
-    printf("\n");
-    printf("mean=%f\n", sum / count);
-    for (int i = 15; i > 8; --i) {
-        printf("[%d]=%d ", 8 - i, hist[i]);
-    }
-    for (int i = 0; i < 8; i++) {
-        printf("[%d]=%d ", i, hist[i]);
-    }
-    printf("\n");
 }
 
 Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL> conv3x3;
