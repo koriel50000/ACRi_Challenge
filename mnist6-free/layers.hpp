@@ -54,7 +54,7 @@ public:
 			    linebuf.slide_window(val);
    			}
  			// output
-   			if (0 + (KN - 1) / 2 <= x && 0 + (KN - 1) / 2 <= y
+   			if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
    			    && (x - (KN - 1) / 2) % st == 0 && (y - (KN - 1) / 2) % st == 0)
    			{
     			win_t oval = linebuf.get_window();
