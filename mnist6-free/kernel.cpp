@@ -212,7 +212,7 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
 
 	read_input(28, 28, 1, ins, even_buf);
-	read_weight(16, 3, 3, ins, even_wi, even_thr);
+	read_weight(16, 3, ins, even_wi, even_thr);
 	// Conv_head
 	read_compute_conv3x3_stride(
 	    28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf,
