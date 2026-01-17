@@ -192,7 +192,6 @@ public:
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
-printf("acc=%d\n", acc);
 					oval[i] = acc;
 				}
 				pips.write(oval);
