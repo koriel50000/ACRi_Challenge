@@ -210,66 +210,19 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
-/*
-const int W = 28;
-const int H = 28;
-const int KN = 3;
-int w = 10;
-int h = 10;
-int st = 1;
-using win = hls::vector<int, KN * KN>;
-LineBuffer<W + KN - 1, KN, int, win> linebuf(w + KN - 1);
 
-int x = 0 - (KN - 1) / 2;
-int y = 0 - (KN - 1) / 2;
-for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
-  if (i >= (w + KN - 1) * (h + KN - 1)) break;
-  // input
-  int val;
-  if (0 <= x && x < w && 0 <= y && y < h) {
-    val = y * w + x + 1;
-  } else {
-    val = 0;
-  }
-  // buffering
-  if (i < (w + KN - 1) * (KN - 1)) {
-    linebuf.insert_linebuf(val);
-  } else {
-    linebuf.slide_window(val);
-  }
-  // output
-  if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
-    && (x - (KN - 1) / 2) % st == 0 && (y - (KN - 1) / 2) % st == 0)
-  {
-    win oval = linebuf.get_window();
-    for (int ky = 0; ky < KN; ky++) {
-      for (int kx = 0; kx < KN; kx++) {
-        printf("[%d,%d]=%d ", x - (KN - 1) + kx, y - (KN - 1) + ky, oval[ky * KN + kx]);
-      }
-      printf("\n");
-	}
-    printf("\n");
-  }
-  x++;
-  if (x >= w + (KN - 1) / 2) {
-    x = 0 - (KN - 1) / 2;
-    y++;
-  }
-}
-return;
-*/
 	read_input(28, 28, 1, ins, even_buf);
 	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	// Conv_head
 	read_compute_conv3x3_stride(
 	    28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, 1, ins, odd_wi, odd_thr);
-print_data_hist(14, 14, 16, odd_buf);
-return;
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
 	    16, 3, 3, ins, even_wi, even_thr);
+print_data_hist(14, 14, 16, even_buf);
+return;
 	read_compute_conv3x3_relu(
 		14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
 	    ins, mat_wi);
