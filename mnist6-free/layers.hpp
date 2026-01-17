@@ -219,6 +219,11 @@ printf("val=%d\n", val[i]);
 			}
 		}
 
+for (int i = 0; i < CL; i++) {
+  printf("%d ", acc[i]);
+}
+printf("\n");
+
 		int16_t max = INT16_MIN;
 		int m = 0;
 		for (int i = 0; i < CL; i++) {
