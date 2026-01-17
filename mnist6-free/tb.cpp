@@ -46,7 +46,7 @@ void array_to_stream(const int input[], hls::stream<uint64_t>& ins) {
         threshold_padding_zero(ins, i);
     }
 
-    for (int i = 0; i < 10 * 784 / 16; i++) {
+    for (int i = 0; i < 784 / 16 * 10; i++) {
         ins.write(linear_weight[i]);
     }
 }
