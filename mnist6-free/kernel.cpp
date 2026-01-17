@@ -246,8 +246,6 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
 	    16, 3, ins, even_wi, even_thr);
-print_data_hist(14, 14, 16, even_buf);
-return;
 	read_compute_conv3x3_relu(
 		14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
 	    ins, mat_wi);
