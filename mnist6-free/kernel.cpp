@@ -262,7 +262,7 @@ return;
 	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	// Conv_head
 	read_compute_conv3x3_stride(
-	    14, 14, 1, 16, even_wi, even_thr, even_buf, odd_buf,
+	    28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, 1, ins, odd_wi, odd_thr);
 print_data_hist(14, 14, 16, odd_buf);
 return;
