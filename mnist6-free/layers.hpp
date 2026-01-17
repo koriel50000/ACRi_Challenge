@@ -58,13 +58,6 @@ public:
    			    && (x - (KN - 1) / 2) % st == 0 && (y - (KN - 1) / 2) % st == 0)
    			{
     			win_t oval = linebuf.get_window();
-for (int ky = 0; ky < 3; ky++) {
-  for (int kx = 0; kx < 3; kx++) {
-    printf("[%d,%d]=%d ", x - 2 + kx, y - 2 + ky, oval[ky * 3 + kx]);
-  }
-  printf("\n");
-}
-printf("\n");
 	    		pips.write(oval);
 	    	}
 		    x++;
