@@ -102,7 +102,7 @@ void read_input(const int h, const int w, const int c,
 		if (y >= h) break;
 		for (int x = 0; x < WIDTH; x++) {
 			if (x >= w) break;
-			data_t val = data_t(12 - ins.read() * 8);
+			data_t val = x % 5 + 1; // data_t(12 - ins.read() * 8);
 			outb[y * WIDTH + x] = val;
 		}
 	}
@@ -210,7 +210,7 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CHUNK_SIZE
-
+/*
 const int W = 28;
 const int H = 28;
 const int KN = 3;
@@ -232,7 +232,7 @@ for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
     val = 0;
   }
   // buffering
-  if (i < (w + (KN - 1)) * (KN - 1)) {
+  if (i < (w + KN - 1) * (KN - 1)) {
     linebuf.insert_linebuf(val);
   } else {
     linebuf.slide_window(val);
@@ -257,12 +257,15 @@ for (int i = 0; i < (W + (KN - 1)) * (H + (KN - 1)); i++) {
   }
 }
 return;
+*/
 	read_input(28, 28, 1, ins, even_buf);
 	read_weight(16, 3, 3, ins, even_wi, even_thr);
 	// Conv_head
 	read_compute_conv3x3_stride(
 	    14, 14, 1, 16, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, 1, ins, odd_wi, odd_thr);
+print_data_hist(14, 14, 16, odd_buf);
+return;
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
