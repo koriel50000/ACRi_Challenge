@@ -37,7 +37,7 @@ public:
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
 		for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + KN - 1) * (h + KN - 1)) break;
    			// input
@@ -79,7 +79,7 @@ public:
 				win_t val = pips.read();
 				data_t oval;
 				for (int j = 0; j < F; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
@@ -111,7 +111,7 @@ public:
 				data_t val = inb[y * WIDTH + x];
 				data_t oval;
 				for (int j = 0; j < F; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = muladd<C>(c, val, wi[j]);
 					oval[j] = batch_norm(acc, thr[j]);
