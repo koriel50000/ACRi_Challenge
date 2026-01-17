@@ -69,7 +69,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < N; i++) {
         hls::stream<uint64_t> ins;
         array_to_stream(input[i], ins);
-        kernel_inner(ins, out[i]);
+        kernel(ins, out[i]);
     }
 
     int match_count = 0;

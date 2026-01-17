@@ -11,10 +11,10 @@
  */
 /*
 -- CNV.py --
-class CNV(nn.Module):
+class QuantConvDPUnit(nn.Module):
 
     def __init__(self):
-        super(CNV, self).__init__()
+        super(QuantConvDPUnit, self).__init__()
 
         self.conv1 = qnn.QuantConv2d(1, 16, 3, 2, 1, bias=False,
                                      weight_quant=Int4WeightQuant, weight_bit_width=4)
@@ -192,7 +192,7 @@ void compute_matmul_write(block_mat_t& mat_wi, block_data_t& inb, int out[1]) {
 	matmul.write_result(out, pips);
 }
 
-void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
+void kernel(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS interface axis port=ins
 #pragma HLS interface axis port=out
 
