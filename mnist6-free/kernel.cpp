@@ -230,7 +230,7 @@ for (int i = 0; i < 12 * 12; i++) {
     linebuf.slide_window(val);
   }
   // output
-  if (0 <= x && 0 <= y && x < 10 && y < 10)
+  if (1 <= x && 1 <= y)
   {
     win oval = linebuf.get_window();
     for (int ky = 0; ky < 3; ky++) {
