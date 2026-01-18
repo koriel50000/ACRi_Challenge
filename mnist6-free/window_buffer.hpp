@@ -39,7 +39,7 @@ private:
 #pragma HLS inline
 		buf_[head_] = value;
 	    head_++;
-	    if ((head_ & (32 - 1)) > width_) {
+	    if ((head_ & (32 - 1)) >= width_) {
             head_ = (head_ & ~(32 - 1)) + 32;
 	        head_ &= (32 * (KN - 1) - 1); // KN = 3, 5
 	    }
@@ -49,7 +49,7 @@ private:
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
-			value[i] = buf_[((i + 1) * 32 + head_) & (32 * (KN - 1) - 1)];
+			value[i] = buf_[((i + 1) * 32 + head_ - 1) & (32 * (KN - 1) - 1)];
 		}
 	}
 public:
