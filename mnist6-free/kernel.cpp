@@ -183,7 +183,9 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
-	linebuf_t linebuf;
+	static data_t buf[32 * (KERNEL - 1)];
+#pragma HLS array_partition variable=buf cyclic=32
+	linebuf_t linebuf(buf);
 
 	read_input(28, 28, 1, ins, even_buf);
 	read_weight(16, 3, ins, even_wi, even_thr);
