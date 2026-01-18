@@ -32,7 +32,7 @@ class LineBuffer32 {
 private:
 	static const int W = 32;
 
-	T buf_[W * (KN - 1)];
+	T* buf_;
 	Window<KN, KN, T, WT> window_;
 	int width_;
 	int head_;
@@ -55,8 +55,9 @@ private:
 		}
 	}
 public:
+	LineBuffer32(T* buf) : buf_(buf) {}
+
 	void init(int w) {
-#pragma HLS array_partition variable=buf_ cyclic=W
 		width_ = w;
 		head_ = 0;
 	}
