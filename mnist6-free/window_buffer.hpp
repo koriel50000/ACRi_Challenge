@@ -27,10 +27,10 @@ public:
 	}
 };
 
-template <int KN, typename T, typename WT>
+template <int W, int KN, typename T, typename WT>
 class LineBuffer32 {
 private:
-	T buf_[32 * (KN - 1)];
+	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 	int width_;
 	int head_ = 0;
@@ -39,9 +39,9 @@ private:
 #pragma HLS inline
 		buf_[head_] = value;
 	    head_++;
-	    if ((head_ & (32 - 1)) >= width_) {
-            head_ = (head_ & ~(32 - 1)) + 32;
-	        head_ &= (32 * (KN - 1) - 1); // KN = 3, 5
+	    if ((head_ & (W - 1)) >= width_) {
+            head_ = (head_ & ~(W - 1)) + W;
+	        head_ &= (W * (KN - 1) - 1); // KN = 3, 5
 	    }
 	}
 
@@ -49,11 +49,11 @@ private:
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
-			value[i] = buf_[((i + 1) * 32 + head_ - 1) & (32 * (KN - 1) - 1)];
+			value[i] = buf_[((i + 1) * W + head_ - 1) & (W * (KN - 1) - 1)];
 		}
 	}
 public:
-	LineBuffer32(int w = 32) : width_(w) {}
+	LineBuffer32(int w = W) : width_(w) {}
 
 	void insert_linebuf(const T v) {
 		shift_pixels_up_and_insert_bottom_row(v);
