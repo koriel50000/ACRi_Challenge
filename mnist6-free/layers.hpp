@@ -24,7 +24,7 @@ using block_conv_t = data_t[FILTER * 1 * KERNEL * KERNEL];
 using block_thr_t = int16_t[FILTER][THRESHOLD];
 using block_mat_t = data_t[CLASS * FLATTEN / CHUNK_SIZE];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
-using linbuf_t = LineBuffer32<KERNEL, data_t, win_t>;
+using linebuf_t = LineBuffer32<KERNEL, data_t, win_t>;
 
 template <typename T>
 using fifo = hls::stream<T>;
