@@ -35,11 +35,10 @@ private:
 	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 	int width_;
-	int head_ = 0;
+	int head_;
 
 	void shift_pixels_up_and_insert_bottom_row(T value) {
 #pragma HLS inline
-#pragma HLS array_partition variable=buf_ cyclic=W
 		buf_[head_] = value;
 	    head_++;
 	    if ((head_ & (W - 1)) >= width_) {
@@ -56,7 +55,11 @@ private:
 		}
 	}
 public:
-	LineBuffer32(int w = W) : width_(w) {}
+	void init(int w) {
+#pragma HLS array_partition variable=buf_ cyclic=W
+		width_ = w;
+		head_ = 0;
+	}
 
 	void insert_linebuf(const T v) {
 		shift_pixels_up_and_insert_bottom_row(v);

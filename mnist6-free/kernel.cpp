@@ -101,6 +101,7 @@ void read_mat_weight(fifo<uint64_t>& ins, block_mat_t& mat_wi) {
 	}
 }
 
+linebuf_t linebuf;
 Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true,2> conv3x3_stride;
 Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
 Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true> conv3x3;
@@ -116,7 +117,7 @@ void read_compute_conv3x3_stride(
 	fifo<win_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	conv3x3_stride.windowize(h, w, inb, pips1);
+	conv3x3_stride.windowize(h, w, linebuf, inb, pips1);
 	conv3x3_stride.compute(h / 2, w / 2, c, f, cur_wi, cur_thr, pips1, outb);
 	read_weight(nf, nkn, ins, next_wi, next_thr);
 }
@@ -141,7 +142,7 @@ void read_compute_conv3x3_relu(
 	fifo<win_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	conv3x3.windowize(h, w, inb, pips1);
+	conv3x3.windowize(h, w, linebuf, inb, pips1);
 	conv3x3.compute(h, w, c, f, cur_wi, cur_thr, pips1, outb);
 	read_mat_weight(ins, mat_wi);
 }

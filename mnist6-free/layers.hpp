@@ -24,6 +24,7 @@ using block_conv_t = data_t[FILTER * 1 * KERNEL * KERNEL];
 using block_thr_t = int16_t[FILTER][THRESHOLD];
 using block_mat_t = data_t[CLASS * FLATTEN / CHUNK_SIZE];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
+using linbuf_t = LineBuffer32<KERNEL, data_t, win_t>;
 
 template <typename T>
 using fifo = hls::stream<T>;
@@ -31,8 +32,8 @@ using fifo = hls::stream<T>;
 template <int H, int W, int C, int F, int KN, bool RELU, int ST = 1>
 class Conv2D {
 public:
-	void windowize(const int h, const int w, block_data_t& inb, fifo<win_t>& pips) {
-		LineBuffer32<KN, data_t, win_t> linebuf(w + KN - 1);
+	void windowize(const int h, const int w, linebuf_t& linebuf, block_data_t& inb, fifo<win_t>& pips) {
+		linebuf.init(w + KN - 1);
 
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
