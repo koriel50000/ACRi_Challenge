@@ -27,39 +27,36 @@ public:
 	}
 };
 
-template <int W, int KN, typename T, typename WT>
-class LineBuffer {
+template <int KN, typename T, typename WT>
+class LineBuffer32 {
 private:
-	T buf_[W * (KN - 1)];
+	T buf_[32 * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 	int width_;
+	int head_ = 0;
 
-	void shift_pixels_up() {
-	    // TODO ring buffer
-		for (int i = 0; i < W * (KN - 1) - 1; i++) {
-#pragma HLS pipeline
-			buf_[i] = buf_[i + 1];
-		}
-	}
-
-	void insert_bottom_row(T value) {
+	void shift_pixels_up_and_insert_bottom_row(T value) {
 #pragma HLS inline
-		buf_[width_ * (KN - 1) - 1] = value;
+		buf_[head_] = value;
+	    head_++;
+	    if ((head_ & 0x1f) >= width_) {
+            head_ = (head_ & ~0x1f) + 32;
+	        head_ &= 32 * (KN - 1) - 1; // KN = 3, 5
+	    }
 	}
 
 	void get_col(T value[KN - 1]) {
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
-			value[i] = buf_[i * width_];
+			value[i] = buf_[((i + 1) * 32 + head_) & (32 * (KN - 1) - 1)];
 		}
 	}
 public:
 	LineBuffer(int w = W) : width_(w) {}
 
 	void insert_linebuf(const T v) {
-		shift_pixels_up();
-		insert_bottom_row(v);
+		shift_pixels_up_and_insert_bottom_row(v);
 	}
 
 	void slide_window(const T v) {
@@ -68,8 +65,7 @@ public:
 
 		get_col(rows);
 		rows[KN - 1] = v;
-		shift_pixels_up();
-		insert_bottom_row(v);
+		shift_pixels_up_and_insert_bottom_row(v);
 
 		window_.shift_pixels_left();
 		window_.insert_right_col(rows);
