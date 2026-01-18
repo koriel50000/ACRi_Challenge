@@ -68,7 +68,7 @@ public:
 		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f, const bool relu,
+	void compute(const int h, const int w, const int c, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<win_t>& pips, block_data_t& outb)
 	{
