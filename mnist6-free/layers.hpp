@@ -32,7 +32,7 @@ template <int H, int W, int C, int F, int KN>
 class Conv2D {
 public:
 	void windowize(const int h, const int w, block_data_t& inb, fifo<win_t>& pips, const int st = 1) {
-		LineBuffer<W + KN - 1, KN, data_t, win_t> linebuf(w + KN - 1);
+		LineBuffer32<KN, data_t, win_t> linebuf(w + KN - 1);
 
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
