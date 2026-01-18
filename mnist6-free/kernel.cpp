@@ -66,35 +66,6 @@ class Int4ActQuant(Fp4e2m1Mixin,
 #include "kernel.hpp"
 #include "layers.hpp"
 
-void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
-    int count = 0;
-    float sum = 0;
-    int hist[16] = {};
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            data_t val = buf[y * WIDTH + x];
-            for (int z = 0; z < c; z++) {
-                int v = val[z].to_int();
-                count++;
-                sum += v;
-                hist[v]++;
-                if (count <= 20) {
-                    printf("%d ", v);
-                }
-            }
-        }
-    }
-    printf("\n");
-    printf("mean=%f\n", sum / count);
-    for (int i = 15; i > 8; --i) {
-        printf("[%d]=%d ", 8 - i, hist[i]);
-    }
-    for (int i = 0; i < 8; i++) {
-        printf("[%d]=%d ", i, hist[i]);
-    }
-    printf("\n");
-}
-
 void read_input(const int h, const int w, const int c,
 	fifo<uint64_t>& ins, block_data_t& outb)
 {
