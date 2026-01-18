@@ -97,52 +97,49 @@ void read_weight(const int f, const int kn,
 
 void read_mat_weight(fifo<uint64_t>& ins, block_mat_t& mat_wi) {
 	for (int i = 0; i < CLASS * FLATTEN / CHUNK_SIZE; i++) {
-	    mat_wi[i] = data_t(ins.read());
+		mat_wi[i] = data_t(ins.read());
 	}
 }
 
-linebuf_t linebuf3x3;
-Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true,2> conv3x3_stride;
-Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
-Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true> conv3x3;
-MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool2x2;
-Dense<CLASS,FLATTEN,CHUNK_SIZE,7,7> matmul;
-
 void read_compute_conv3x3_stride(
-    const int h, const int w, const int c, const int f,
+	const int h, const int w, const int c, const int f, linebuf_t& linebuf,
 	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
-    const int nf, const int nkn,
-    fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
+	const int nf, const int nkn,
+	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
 {
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true,2> conv3x3_stride;
 	fifo<win_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	conv3x3_stride.windowize(h, w, linebuf3x3, inb, pips1);
+	conv3x3_stride.windowize(h, w, linebuf, inb, pips1);
 	conv3x3_stride.compute(h / 2, w / 2, c, f, cur_wi, cur_thr, pips1, outb);
 	read_weight(nf, nkn, ins, next_wi, next_thr);
 }
 
 void read_compute_conv1x1(
-    const int h, const int w, const int c, const int f,
+	const int h, const int w, const int c, const int f,
 	block_conv_t& cur_wi, block_thr_t& cur_thr,
 	block_data_t& inb, block_data_t& outb,
-    const int nf, const int nkn,
-    fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
+	const int nf, const int nkn,
+	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
 {
+	Conv2D1x1<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
+
 #pragma HLS dataflow
 	conv1x1.compute(h, w, c, f, cur_wi, cur_thr, inb, outb);
 	read_weight(nf, nkn, ins, next_wi, next_thr);
 }
 
 void read_compute_conv3x3_relu(
-    const int h, const int w, const int c, const int f,
+    const int h, const int w, const int c, const int f, linebuf_t& linebuf,
 	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
     fifo<uint64_t>& ins, block_mat_t& mat_wi)
 {
+	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true> conv3x3;
 	fifo<win_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	conv3x3.windowize(h, w, linebuf3x3, inb, pips1);
+	conv3x3.windowize(h, w, linebuf, inb, pips1);
 	conv3x3.compute(h, w, c, f, cur_wi, cur_thr, pips1, outb);
 	read_mat_weight(ins, mat_wi);
 }
@@ -150,6 +147,7 @@ void read_compute_conv3x3_relu(
 void compute_maxpool2x2(const int h, const int w, const int c,
 	block_data_t& inb, block_data_t& outb)
 {
+	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool2x2;
 	fifo<data_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
@@ -158,7 +156,8 @@ void compute_maxpool2x2(const int h, const int w, const int c,
 }
 
 void compute_matmul_write(block_mat_t& mat_wi, block_data_t& inb, int out[1]) {
-    fifo<int_t<CLASS,16>> pips("pipe_fifo");  // int16_t
+	Dense<CLASS,FLATTEN,CHUNK_SIZE,7,7> matmul;
+	fifo<int_t<CLASS,16>> pips("pipe_fifo");  // int16_t
 
 #pragma HLS dataflow
 	matmul.flatten(mat_wi, inb, pips);
@@ -184,18 +183,20 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS array_partition variable=odd_thr
 #pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
 
+	linebuf_t linebuf;
+
 	read_input(28, 28, 1, ins, even_buf);
 	read_weight(16, 3, ins, even_wi, even_thr);
 	// Conv_head
 	read_compute_conv3x3_stride(
-	    28, 28, 1, 16, even_wi, even_thr, even_buf, odd_buf,
+	    28, 28, 1, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, ins, odd_wi, odd_thr);
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
 	    16, 3, ins, even_wi, even_thr);
 	read_compute_conv3x3_relu(
-		14, 14, 16, 16, even_wi, even_thr, even_buf, odd_buf,
+		14, 14, 16, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 	    ins, mat_wi);
 	// YuNetBackbone
 	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
