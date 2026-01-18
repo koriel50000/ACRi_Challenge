@@ -37,19 +37,19 @@ private:
 
 	void shift_pixels_up_and_insert_bottom_row(T value) {
 #pragma HLS inline
+		buf_[head_] = value;
 	    head_++;
 	    if ((head_ & (W - 1)) >= width_) {
             head_ = (head_ & ~(W - 1)) + W;
 	        head_ &= (W * (KN - 1) - 1); // KN = 3, 5
 	    }
-		buf_[head_] = value;
 	}
 
 	void get_col(T value[KN - 1]) {
 #pragma HLS inline
 		for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
-			value[i] = buf_[(i * W + head_ - 1) & (W * (KN - 1) - 1)];
+			value[i] = buf_[(i * W + head_) & (W * (KN - 1) - 1)];
 		}
 	}
 public:
