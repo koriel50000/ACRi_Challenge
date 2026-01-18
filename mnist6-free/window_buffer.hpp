@@ -39,7 +39,7 @@ private:
 #pragma HLS inline
 		buf_[head_] = value;
 	    head_++;
-	    if ((head_ & (W - 1)) > width_) {
+	    if ((head_ & (W - 1)) >= width_) {
             head_ = (head_ & ~(W - 1)) + W;
 	        head_ &= (W * (KN - 1) - 1); // KN = 3, 5
 	    }
