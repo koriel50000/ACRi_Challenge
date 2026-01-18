@@ -27,9 +27,10 @@ public:
 	}
 };
 
-template <int W, int KN, typename T, typename WT>
+template <int KN, typename T, typename WT>
 class LineBuffer32 {
 private:
+    static const int W = 32;
 	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 	int width_;
