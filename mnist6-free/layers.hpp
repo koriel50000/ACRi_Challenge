@@ -38,7 +38,7 @@ public:
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;
 		for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + KN - 1) * (h + KN - 1)) break;
    			// input
@@ -80,7 +80,7 @@ public:
 				win_t val = pips.read();
 				data_t oval;
 				for (int j = 0; j < F; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
@@ -112,7 +112,7 @@ public:
 				data_t val = inb[y * WIDTH + x];
 				data_t oval;
 				for (int j = 0; j < F; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = muladd<C>(c, val, wi[j]);
 					oval[j] = batch_norm(acc, thr[j]);
@@ -140,7 +140,7 @@ public:
 		for (int y = 0; y < H; y++) {
 			if (y >= h) break;
 			for (int x = 0; x < W; x += 2) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= w) break;
 				data_t val1 = inb[y * WIDTH + x];
 				data_t val2 = inb[y * WIDTH + x + 1];
@@ -160,12 +160,12 @@ public:
 		for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
 			for (int x = 0; x < W; x++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
 			for (int x = 0; x < W; x++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 				if (x >= ow) break;
 				data_t val1 = buf[x];
 				data_t val2 = pips.read();
@@ -190,7 +190,7 @@ public:
 				IT vu = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 					IT wi = mat[ptr++];
 					int16_t acc = muladd<K>(K, vu, wi);
 					oval[i] = acc;
@@ -210,7 +210,7 @@ public:
 		}
 
 		for (int j = 0; j < FL / K; j++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			OT val = pips.read();
 			for (int i = 0; i < CL; i++) {
 #pragma HLS unroll
@@ -221,7 +221,7 @@ public:
 		int16_t max = INT16_MIN;
 		int m = 0;
 		for (int i = 0; i < CL; i++) {
-//#pragma HLS pipeline
+#pragma HLS pipeline
 			if (acc[i] > max) {
 				max = acc[i];
 				m = i;
