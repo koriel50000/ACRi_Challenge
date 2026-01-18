@@ -28,10 +28,10 @@ using win_t = hls::vector<data_t, KERNEL * KERNEL>;
 template <typename T>
 using fifo = hls::stream<T>;
 
-template <int H, int W, int C, int F, int KN>
+template <int H, int W, int C, int F, int KN, bool RELU, int ST = 1>
 class Conv2D {
 public:
-	void windowize(const int h, const int w, block_data_t& inb, fifo<win_t>& pips, const int st = 1) {
+	void windowize(const int h, const int w, block_data_t& inb, fifo<win_t>& pips) {
 		LineBuffer32<KN, data_t, win_t> linebuf(w + KN - 1);
 
         int x = 0 - (KN - 1) / 2;
@@ -55,7 +55,7 @@ public:
    			}
  			// output
    			if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
-   			    && (x - (KN - 1) / 2) % st == 0 && (y - (KN - 1) / 2) % st == 0)
+   			    && (x - (KN - 1) / 2) % ST == 0 && (y - (KN - 1) / 2) % ST == 0)
    			{
     			win_t oval = linebuf.get_window();
 	    		pips.write(oval);
@@ -85,7 +85,7 @@ public:
 					for (int k = 0; k < KN * KN; k++) {
 						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
 					}
-					if (relu) {
+					if (RELU) {
     					oval[j] = batch_norm_relu(acc, thr[j]);
 	   				} else {
 		    			oval[j] = batch_norm(acc, thr[j]);
