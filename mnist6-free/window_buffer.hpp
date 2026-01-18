@@ -53,7 +53,7 @@ private:
 		}
 	}
 public:
-	LineBuffer32(int w = W) : width_(w) {}
+	LineBuffer32(int w = 32) : width_(w) {}
 
 	void insert_linebuf(const T v) {
 		shift_pixels_up_and_insert_bottom_row(v);
