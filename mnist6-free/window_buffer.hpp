@@ -32,7 +32,7 @@ class LineBuffer32 {
 private:
 	static const int W = 32;
 
-	T buf_[W * (KERNEL - 1)];
+	T buf_[W * (KN - 1)];
 	Window<KN, KN, T, WT> window_;
 	int width_;
 	int head_;
