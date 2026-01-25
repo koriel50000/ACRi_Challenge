@@ -40,12 +40,12 @@ private:
 
 	void shift_pixels_up() {
 #pragma HLS inline
+		last_ = buf_[head_];
 		head_++;
 	    if ((head_ & (W - 1)) >= width_) {
 			head_ = (head_ & ~(W - 1)) + W;
 			head_ &= (W * (KN - 1) - 1); // KN = 3, 5
 		}
-		last_ = buf_[head_];
 	}
 
 	void insert_bottom_row(T value) {
