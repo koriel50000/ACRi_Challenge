@@ -221,8 +221,6 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 	read_compute_conv3x3_stride(
 	    28, 28, 1, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, ins, odd_wi, odd_thr);
-print_data_hist(14, 14, 16, odd_buf);
-return;
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
@@ -230,6 +228,8 @@ return;
 	read_compute_conv3x3_relu(
 		14, 14, 16, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 	    ins, mat_wi);
+print_data_hist(14, 14, 16, odd_buf);dd
+return;
 	// YuNetBackbone
 	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
 	compute_matmul_write(mat_wi, even_buf, out);
