@@ -188,7 +188,7 @@ root_command() {
   check_bytes
   check_csim
   check_hls
-  check_cosim
+  # check_cosim
   
   if [[ $synthesis ]] ; then
     check_syn

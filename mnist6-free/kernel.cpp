@@ -164,6 +164,35 @@ void compute_matmul_write(block_mat_t& mat_wi, block_data_t& inb, int out[1]) {
 	matmul.write_result(out, pips);
 }
 
+void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
+    int count = 0;
+    float sum = 0;
+    int hist[15] = {};
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            data_t val = buf[y * WIDTH + x];
+            for (int z = 0; z < c; z++) {
+                int v = val[z].to_int();
+                count++;
+                sum += v;
+                hist[v]++;
+                if (count <= 20) {
+                    printf("%d ", v);
+                }
+            }
+        }
+    }
+    printf("\n");
+    printf("mean=%f\n", sum / count);
+    for (int i = 15; i > 8; --i) {
+        printf("[%d]=%d ", 8 - i, hist[i]);
+    }
+    for (int i = 0; i < 8; i++) {
+        printf("[%d]=%d ", i, hist[i]);
+    }
+    printf("\n");
+}
+
 void kernel(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS interface axis port=ins
 #pragma HLS interface axis port=out
@@ -192,6 +221,8 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 	read_compute_conv3x3_stride(
 	    28, 28, 1, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 	    16, 1, ins, odd_wi, odd_thr);
+print_data_hist(14, 14, 16, odd_buf);
+return;
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 	    14, 14, 16, 16, odd_wi, odd_thr, odd_buf, even_buf,
