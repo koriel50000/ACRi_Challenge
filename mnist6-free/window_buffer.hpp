@@ -38,19 +38,15 @@ private:
 	int width_;
 	int head_;
 
-	void shift_pixels_up() {
+	void shift_pixels_up_and_insert_bottom_row(T value) {
 #pragma HLS inline
 		last_ = buf_[head_];
+		buf_[head_] = value;
 		head_++;
 	    if ((head_ & (W - 1)) >= width_) {
 			head_ = (head_ & ~(W - 1)) + W;
 			head_ &= (W * (KN - 1) - 1); // KN = 3, 5
 		}
-	}
-
-	void insert_bottom_row(T value) {
-#pragma HLS inline
-		buf_[head_] = value;
 	}
 
 	void get_col(T value[KN - 1]) {
@@ -70,8 +66,7 @@ public:
 	}
 
 	void insert_linebuf(const T v) {
-		shift_pixels_up();
-		insert_bottom_row(v);
+		shift_pixels_up_and_insert_bottom_row(v);
 	}
 
 	void slide_window(const T v) {
@@ -80,8 +75,7 @@ public:
 
 		get_col(rows);
 		rows[KN - 1] = v;
-		shift_pixels_up();
-		insert_bottom_row(v);
+		shift_pixels_up_and_insert_bottom_row(v);
 
 		window_.shift_pixels_left();
 		window_.insert_right_col(rows);
