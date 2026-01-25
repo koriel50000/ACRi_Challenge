@@ -228,7 +228,7 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 	read_compute_conv3x3_relu(
 		14, 14, 16, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 	    ins, mat_wi);
-print_data_hist(14, 14, 16, odd_buf);dd
+print_data_hist(14, 14, 16, odd_buf);
 return;
 	// YuNetBackbone
 	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
