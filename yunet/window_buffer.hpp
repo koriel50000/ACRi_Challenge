@@ -33,6 +33,7 @@ private:
 	static const int W = 256;
 
 	T buf_[W * (KN - 1)];
+	T last_;
 	Window<KN, KN, T, WT> window_;
 	int width_;
 	int head_;
@@ -40,16 +41,18 @@ private:
 	void shift_pixels_up_and_insert_bottom_row(T value) {
 #pragma HLS inline
 		buf_[head_] = value;
-	    head_++;
-	    if ((head_ & (W - 1)) >= width_) {
-            head_ = (head_ & ~(W - 1)) + W;
-	        head_ &= (W * (KN - 1) - 1); // KN = 3, 5
-	    }
+		head_++;
+		if ((head_ & (W - 1)) >= width_) {
+			head_ = (head_ & ~(W - 1)) + W;
+			head_ &= (W * (KN - 1) - 1); // KN = 3, 5
+		}
+		last_ = buf_[head_];
 	}
 
 	void get_col(T value[KN - 1]) {
 #pragma HLS inline
-		for (int i = 0; i < KN - 1; i++) {
+		value[0] = last_;
+		for (int i = 1; i < KN - 1; i++) {
 #pragma HLS unroll
 			value[i] = buf_[(i * W + head_) & (W * (KN - 1) - 1)];
 		}
@@ -59,6 +62,7 @@ public:
 #pragma HLS array_partition variable=buf_ cyclic=W
 		width_ = w;
 		head_ = 0;
+		last_ = 0;
 	}
 
 	void insert_linebuf(const T v) {
