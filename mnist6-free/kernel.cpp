@@ -175,13 +175,14 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 	static block_conv_t odd_wi;
 	static block_thr_t odd_thr;
 	static block_mat_t mat_wi;
-#pragma HLS array_partition variable=even_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=odd_buf cyclic factor=WIDTH
-#pragma HLS array_partition variable=even_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=even_thr
-#pragma HLS array_partition variable=odd_wi cyclic factor=KERNEL*KERNEL
-#pragma HLS array_partition variable=odd_thr
-#pragma HLS array_partition variable=mat_wi cyclic factor=CLASS
+#pragma HLS bind_storage variable=even_buf type=ram_1p impl=bram
+#pragma HLS bind_storage variable=even_buf type=ram_1p impl=bram
+#pragma HLS bind_storage variable=odd_buf type=ram_1p impl=bram
+#pragma HLS bind_storage variable=even_wi type=ram_1p impl=bram
+#pragma HLS bind_storage variable=even_thr type=ram_1p impl=bram
+#pragma HLS bind_storage variable=odd_wi type=ram_1p impl=bram
+#pragma HLS bind_storage variable=odd_thr type=ram_1p impl=bram
+#pragma HLS bind_storage variable=mat_wi type=ram_1p impl=bram
 
 	linebuf_t linebuf;
 
