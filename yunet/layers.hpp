@@ -3,7 +3,7 @@
 #undef INLINE
 #include <hls_stream.h>
 #include "types.hpp"
-#include "arith.hpp"
+#include "bitarith.hpp"
 #include "window_buffer.hpp"
 
 const int WIDTH = 160;
@@ -29,7 +29,7 @@ template <int H, int W, int C, int F, int KN, bool RELU, int ST = 1>
 class Conv2D {
 public:
 	void windowize(const int h, const int w, linebuf_t& linebuf, block_data_t& inb, fifo<win_t>& pips) {
-		linebuf.init(w + KN - 1);
+		linebuf.reset(w + KN - 1);
 
         int x = 0 - (KN - 1) / 2;
         int y = 0 - (KN - 1) / 2;

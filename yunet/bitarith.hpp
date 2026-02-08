@@ -1,7 +1,7 @@
 #pragma once
 #include "types.hpp"
 
-int16_t mul(const uint4_t v, const uint4_t w) {
+inline int16_t mul(const uint4_t v, const uint4_t w) {
 	static const int16_t v0[] = {
 		0, 1, 2, 3, 4, 6, 8, 12,
 		0, -1, -2, -3, -4, -6, -8, -12,
@@ -35,7 +35,7 @@ int16_t muladd(const int c, const int_t<C> vu, const int_t<C> wi) {
 	return t[0];
 }
 
-uint4_t batch_norm_relu(const int16_t acc, const int16_t thr[]) {
+inline uint4_t batch_norm_relu(const int16_t acc, const int16_t thr[]) {
 	ap_uint<1> b0 = acc < thr[0];
 	ap_uint<1> b1 = acc < thr[1];
 	ap_uint<1> b2 = acc < thr[2];
@@ -48,7 +48,7 @@ uint4_t batch_norm_relu(const int16_t acc, const int16_t thr[]) {
 	return __builtin_ctz(bits);
 }
 
-uint4_t batch_norm(const int16_t acc, const int16_t thr[]) {
+inline uint4_t batch_norm(const int16_t acc, const int16_t thr[]) {
 	static const uint4_t indexTable[] = {
 		7, 6, 5, 2, 4, 10, 1, 12, 0, 3, 9, 11, 15, 0, 14, 13
 	};
