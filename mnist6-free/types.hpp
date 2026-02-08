@@ -1,4 +1,7 @@
 #pragma once
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <ap_int.h>
 
 using uint4_t = ap_uint<4>;
@@ -13,6 +16,8 @@ public:
 	int_t(unsigned int ui) : buf_(ui) {}
 	int_t(long l) : buf_(l) {}
 	int_t(unsigned long ul) : buf_(ul) {}
+	int_t(long long ll) : buf_(ll) {}
+	int_t(unsigned long long ull) : buf_(ull) {}
 	int_t(const char* s) : buf_(s) {}
 
 	inline ap_range_ref<W*N, false> operator[](size_t index) const {
