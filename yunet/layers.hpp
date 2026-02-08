@@ -20,7 +20,7 @@ using block_data_t = data_t[HEIGHT * WIDTH * 1];
 using block_conv_t = data_t[FILTER * 1 * KERNEL * KERNEL];
 using block_thr_t = int16_t[FILTER][THRESHOLD];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
-using linebuf_t = LineBuffer256<KERNEL, data_t, win_t>;
+using linebuf_t = LineBuffer<256, KERNEL, data_t, win_t>;
 
 template <typename T>
 using fifo = hls::stream<T>;
