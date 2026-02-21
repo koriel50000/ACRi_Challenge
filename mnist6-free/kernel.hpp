@@ -4,7 +4,7 @@
 
 extern "C" {
 void kernel(
-  hls::stream<uint64_t>& ins,
-  int out[1]
+	hls::stream<uint64_t>& ins,
+	int out[1]
 );
 }

@@ -30,7 +30,7 @@ public:
 		return buf_(W * index + W - 1, W * index);
 	}
 
-    unsigned long to_ulong() const {
-        return buf_.to_ulong();
-    }
+	unsigned long to_ulong() const {
+		return buf_.to_ulong();
+	}
 };

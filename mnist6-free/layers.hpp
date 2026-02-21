@@ -16,7 +16,7 @@ const int THRESHOLD = 14;
 
 const int FLATTEN = 784;
 const int CLASS = 10;
-const int CHUNK_SIZE = 16;  // == FILTER
+const int CHUNK_SIZE = 16;	// == FILTER
 
 using data_t = int_t<CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH * 1];
@@ -35,41 +35,41 @@ public:
 	void windowize(const int h, const int w, linebuf_t& linebuf, block_data_t& inb, fifo<win_t>& pips) {
 		linebuf.reset(w + KN - 1);
 
-        int x = 0 - (KN - 1) / 2;
-        int y = 0 - (KN - 1) / 2;
+		int x = 0 - (KN - 1) / 2;
+		int y = 0 - (KN - 1) / 2;
 		for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
 #pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + KN - 1) * (h + KN - 1)) break;
    			// input
    			data_t val;
-    		if (0 <= x && x < w	&& 0 <= y && y < h) {
-	    		val = inb[y * WIDTH + x];
-		    } else {
-			    val = 0;
+			if (0 <= x && x < w	&& 0 <= y && y < h) {
+				val = inb[y * WIDTH + x];
+			} else {
+				val = 0;
    			}
-           // buffering
+		   // buffering
    			if (i < (w + KN - 1) * (KN - 1)) {
-    			linebuf.insert_linebuf(val);
-	    	} else {
-			    linebuf.slide_window(val);
+				linebuf.insert_linebuf(val);
+			} else {
+				linebuf.slide_window(val);
    			}
  			// output
    			if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
-   			    && (x - (KN - 1) / 2) % ST == 0 && (y - (KN - 1) / 2) % ST == 0)
+   				&& (x - (KN - 1) / 2) % ST == 0 && (y - (KN - 1) / 2) % ST == 0)
    			{
-    			win_t oval = linebuf.get_window();
-	    		pips.write(oval);
-	    	}
-		    x++;
-		    if (x >= w + (KN - 1) / 2) {
-                x = 0 - (KN - 1) / 2;
-		        y++;
-		    }
+				win_t oval = linebuf.get_window();
+				pips.write(oval);
+			}
+			x++;
+			if (x >= w + (KN - 1) / 2) {
+				x = 0 - (KN - 1) / 2;
+				y++;
+			}
 		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f,
+	void compute(const int h, const int w, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<win_t>& pips, block_data_t& outb)
 	{
@@ -84,12 +84,46 @@ public:
 					if (j >= f) break;
 					int16_t acc = 0;
 					for (int k = 0; k < KN * KN; k++) {
-						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
+						acc += muladd<C>(val[k], wi[j * KN * KN + k]);
 					}
 					if (RELU) {
-    					oval[j] = batch_norm_relu(acc, thr[j]);
+						oval[j] = batch_norm_relu(acc, thr[j]);
 	   				} else {
-		    			oval[j] = batch_norm(acc, thr[j]);
+						oval[j] = batch_norm(acc, thr[j]);
+					}
+				}
+				outb[y * WIDTH + x] = oval;
+			}
+		}
+	}
+};
+
+template <int H, int W, int C, int F, int KN, bool RELU>
+class Conv2Ddepthwise : public Conv2D<H, W, C, F, KN, RELU> {
+public:
+	void compute(const int h, const int w, const int f,
+		block_conv_t& wi, block_thr_t& thr,
+		fifo<win_t>& pips, block_data_t& outb)
+	{
+		for (int y = 0; y < H; y++) {
+			if (y >= h) break;
+			for (int x = 0; x < W; x++) {
+				if (x >= w) break;
+				win_t ival = pips.read();
+				data_t oval;
+				for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
+					if (j >= f) break;
+					data_t val = 0;
+					for (int k = 0; k < KN * KN; k++) {
+#pragma HLS unroll
+						val[k] = ival[k][j];
+					}
+					int16_t acc = muladd<C>(val, wi[j]);
+					if (RELU) {
+						oval[j] = batch_norm_relu(acc, thr[j]);
+	   				} else {
+						oval[j] = batch_norm(acc, thr[j]);
 					}
 				}
 				outb[y * WIDTH + x] = oval;
@@ -99,9 +133,9 @@ public:
 };
 
 template <int H, int W, int C, int F>
-class Conv2D1x1 {
+class Conv2Dpointwise {
 public:
-	void compute(const int h, const int w, const int c, const int f,
+	void compute(const int h, const int w, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		block_data_t& inb, block_data_t& outb)
 	{
@@ -114,7 +148,7 @@ public:
 				for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
 					if (j >= f) break;
-					int16_t acc = muladd<C>(c, val, wi[j]);
+					int16_t acc = muladd<C>(val, wi[j]);
 					oval[j] = batch_norm(acc, thr[j]);
 				}
 				outb[y * WIDTH + x] = oval;
@@ -192,7 +226,7 @@ public:
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
-					int16_t acc = muladd<K>(K, vu, wi);
+					int16_t acc = muladd<K>(vu, wi);
 					oval[i] = acc;
 				}
 				pips.write(oval);
