@@ -38,7 +38,7 @@ void array_to_stream(const int input[], hls::stream<uint64_t>& ins) {
         ins.write(quant2_threshold[i]);
     }
 
-    for (int i = 0; i < 16 * 9; i++) {
+    for (int i = 0; i < 16 * 1; i++) {
         ins.write(conv3_weight[i]);
     }
     for (int i = 0; i < 16 * 7; i++) {

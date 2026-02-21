@@ -1,68 +1,3 @@
-/*
- * YuNet顔検出の4bit量子化および演算回路再利用に向けた事前検証
- * ・weightを1bit符号＋3bit指数部の4bitで表現(0,1,2,4,8,16,32,64,NA,-1,-2,-4,-8,-16,-32,-64) * scale
- * ・バッチ正規化を追加し、activationを1bit符号+2bit指数部+1bit仮数部の4bitで表現
- *	 (0,0.25,0.5,0.75,1.0,1.5,2.0,3.0, NA,-0.25,-0.5,-0.75,-1.0,-1.5,-2.0,-3.0)
- * ・推論時は閾値を4倍で計算して、activationを整数値に変換
- * ・乗算は符号なし3bitの掛け算をシフトで計算
- * ・演算回路は最大サイズのConv,Maxpoolを用意し、引数で行列サイズを指定して再利用(ループをbreak、閾値の範囲外は0埋め)
- * ・メインメモリから入力画像、重みおよび閾値のパラメータを転送し続ける
- * ・ダブルバッファリングでパラメータ転送中に演算して、演算結果を一時保存
- */
-/*
--- CNV.py --
-class QuantConvDPUnit(nn.Module):
-
-	def __init__(self):
-		super(QuantConvDPUnit, self).__init__()
-
-		self.conv1 = qnn.QuantConv2d(1, 16, 3, 2, 1, bias=False,
-									weight_quant=Int4WeightQuant, weight_bit_width=4)
-		self.bn1 = nn.BatchNorm2d(16)
-		self.relu1 = qnn.QuantReLU(act_quant=Int4ActQuant)
-		self.conv2 = qnn.QuantConv2d(16, 16, 1, 1, 0, bias=False,
-									weight_quant=Int4WeightQuant, weight_bit_width=4)
-		self.bn2 = nn.BatchNorm2d(16)
-		self.quant2 = qnn.QuantIdentity(act_quant=Int4ActQuant)
-		self.conv3 = qnn.QuantConv2d(16, 16, 3, 1, 1, bias=False,
-									weight_quant=Int4WeightQuant, weight_bit_width=4)
-		self.bn3 = nn.BatchNorm2d(16)
-		self.relu3 = qnn.QuantReLU(act_quant=Int4ActQuant)
-		self.pool3 = nn.MaxPool2d(kernel_size=2)
-
-		self.linear = qnn.QuantLinear(784, 10, bias=False,
-									weight_quant=Int4WeightQuant, weight_bit_width=4)
-		self.tn = TensorNorm()
-
-
--- common.py --
-class Fp4e3m0Mixin(ExtendedInjector):
-	bit_width = 4
-	exponent_bit_width = 3
-	mantissa_bit_width = 0
-	saturating = True
-
-
-class Int4WeightQuant(Fp4e3m0Mixin,
-				ScaledFloatWeightBase):
-	scaling_per_output_type = ScalingPerOutputType.CHANNEL
-
-	@value
-	def exponent_bias(exponent_bit_width):
-		return 1
-
-
-class Int4ActQuant(Fp4e2m1Mixin,
-				FloatActBase,
-				ActQuantSolver):
-	scaling_impl_type = ScalingImplType.CONST
-	scaling_per_output_channel = False
-	restrict_scaling_type = RestrictValueType.FP
-	zero_point_impl = ZeroZeroPoint
-	scaling_const = 1
-	max_val = 0.5
-	min_val = -0.5
- */
 #include "kernel.hpp"
 #include "layers.hpp"
 
@@ -220,7 +155,7 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 		14, 14, 16, odd_wi, odd_thr, odd_buf, even_buf,
-		16, 3, ins, even_wi, even_thr);
+		16, 1, ins, even_wi, even_thr);
 	read_compute_conv3x3dw_relu(
 		14, 14, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 		ins, mat_wi);
