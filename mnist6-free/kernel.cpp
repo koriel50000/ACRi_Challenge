@@ -17,21 +17,21 @@ class QuantConvDPUnit(nn.Module):
 		super(QuantConvDPUnit, self).__init__()
 
 		self.conv1 = qnn.QuantConv2d(1, 16, 3, 2, 1, bias=False,
-									 weight_quant=Int4WeightQuant, weight_bit_width=4)
+									weight_quant=Int4WeightQuant, weight_bit_width=4)
 		self.bn1 = nn.BatchNorm2d(16)
 		self.relu1 = qnn.QuantReLU(act_quant=Int4ActQuant)
 		self.conv2 = qnn.QuantConv2d(16, 16, 1, 1, 0, bias=False,
-									 weight_quant=Int4WeightQuant, weight_bit_width=4)
+									weight_quant=Int4WeightQuant, weight_bit_width=4)
 		self.bn2 = nn.BatchNorm2d(16)
 		self.quant2 = qnn.QuantIdentity(act_quant=Int4ActQuant)
 		self.conv3 = qnn.QuantConv2d(16, 16, 3, 1, 1, bias=False,
-									 weight_quant=Int4WeightQuant, weight_bit_width=4)
+									weight_quant=Int4WeightQuant, weight_bit_width=4)
 		self.bn3 = nn.BatchNorm2d(16)
 		self.relu3 = qnn.QuantReLU(act_quant=Int4ActQuant)
 		self.pool3 = nn.MaxPool2d(kernel_size=2)
 
 		self.linear = qnn.QuantLinear(784, 10, bias=False,
-									  weight_quant=Int4WeightQuant, weight_bit_width=4)
+									weight_quant=Int4WeightQuant, weight_bit_width=4)
 		self.tn = TensorNorm()
 
 
@@ -44,7 +44,7 @@ class Fp4e3m0Mixin(ExtendedInjector):
 
 
 class Int4WeightQuant(Fp4e3m0Mixin,
-					  ScaledFloatWeightBase):
+				ScaledFloatWeightBase):
 	scaling_per_output_type = ScalingPerOutputType.CHANNEL
 
 	@value
@@ -53,8 +53,8 @@ class Int4WeightQuant(Fp4e3m0Mixin,
 
 
 class Int4ActQuant(Fp4e2m1Mixin,
-				   FloatActBase,
-				   ActQuantSolver):
+				FloatActBase,
+				ActQuantSolver):
 	scaling_impl_type = ScalingImplType.CONST
 	scaling_per_output_channel = False
 	restrict_scaling_type = RestrictValueType.FP
@@ -66,13 +66,9 @@ class Int4ActQuant(Fp4e2m1Mixin,
 #include "kernel.hpp"
 #include "layers.hpp"
 
-void read_input(const int h, const int w, const int c,
-	fifo<uint64_t>& ins, block_data_t& outb)
-{
+void read_input(fifo<uint64_t>& ins, block_data_t& outb) {
 	for (int y = 0; y < HEIGHT; y++) {
-		if (y >= h) break;
 		for (int x = 0; x < WIDTH; x++) {
-			if (x >= w) break;
 			data_t val = data_t(12 - ins.read() * 8);
 			outb[y * WIDTH + x] = val;
 		}
@@ -215,7 +211,7 @@ void kernel(fifo<uint64_t>& ins, int out[1]) {
 
 	static linebuf_t linebuf;
 
-	read_input(28, 28, 1, ins, even_buf);
+	read_input(ins, even_buf);
 	read_weight(16, 3, ins, even_wi, even_thr);
 	// Conv_head
 	read_compute_conv3x3_stride(
