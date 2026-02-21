@@ -281,13 +281,13 @@ inline int16_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int C>
-int16_t muladd(const int_t<C> vu, const int_t<C> wi) {
+int16_t muladd(const int_t<C> vi, const int_t<C> wi) {
 	static int16_t t[C];
 #pragma HLS array_partition variable=t
 
 	for (int i = 0; i < C; i++) {
 #pragma HLS unroll
-		t[i] = mul(vu[i], wi[i]);
+		t[i] = mul(vi[i], wi[i]);
 	}
 
 	for (int d = 1; d < C; d *= 2) {
@@ -577,15 +577,14 @@ public:
 template <int H, int W, int C>
 class MaxPool2x2 {
 private:
-	void maxpool(const int c, const data_t v1, const data_t v2, data_t& ov) {
+	void maxpool(const data_t v1, const data_t v2, data_t& ov) {
 		for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			if (z >= c) break;
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
 public:
-	void compute_h(const int h, const int w, const int c,
+	void compute_h(const int h, const int w,
 		block_data_t& inb, fifo<data_t>& pips)
 	{
 		for (int y = 0; y < H; y++) {
@@ -596,13 +595,13 @@ public:
 				data_t val1 = inb[y * WIDTH + x];
 				data_t val2 = inb[y * WIDTH + x + 1];
 				data_t oval;
-				maxpool(c, val1, val2, oval);
+				maxpool(val1, val2, oval);
 				pips.write(oval);
 			}
 		}
 	}
 
-	void compute_v(const int oh, const int ow, const int oc,
+	void compute_v(const int oh, const int ow,
 		fifo<data_t>& pips, block_data_t& outb)
 	{
 		static data_t buf[W / 2];
@@ -621,7 +620,7 @@ public:
 				data_t val1 = buf[x];
 				data_t val2 = pips.read();
 				data_t oval;
-				maxpool(oc, val1, val2, oval);
+				maxpool(val1, val2, oval);
 				outb[y * WIDTH + x] = oval;
 			}
 		}
@@ -638,12 +637,12 @@ public:
 		int ptr = 0;
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
-				IT vu = inb[y * WIDTH + x];
+				IT vi = inb[y * WIDTH + x];
 				OT oval;
 				for (int i = 0; i < CL; i++) {
 #pragma HLS pipeline
 					IT wi = mat[ptr++];
-					int16_t acc = muladd<K>(vu, wi);
+					int16_t acc = muladd<K>(vi, wi);
 					oval[i] = acc;
 				}
 				pips.write(oval);
@@ -756,15 +755,15 @@ void read_compute_conv3x3dw_relu(
 	read_mat_weight(ins, mat_wi);
 }
 
-void compute_maxpool2x2(const int h, const int w, const int c,
+void compute_maxpool2x2(const int h, const int w,
 	block_data_t& inb, block_data_t& outb)
 {
 	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool2x2;
 	fifo<data_t> pips1("pipe_fifo1");
 
 #pragma HLS dataflow
-	maxpool2x2.compute_h(h, w, c, inb, pips1);
-	maxpool2x2.compute_v(h / 2, w / 2, c, pips1, outb);
+	maxpool2x2.compute_h(h, w, inb, pips1);
+	maxpool2x2.compute_v(h / 2, w / 2, pips1, outb);
 }
 
 void compute_matmul_write(block_mat_t& mat_wi, block_data_t& inb, int out[1]) {
@@ -774,35 +773,6 @@ void compute_matmul_write(block_mat_t& mat_wi, block_data_t& inb, int out[1]) {
 #pragma HLS dataflow
 	matmul.flatten(mat_wi, inb, pips);
 	matmul.write_result(out, pips);
-}
-
-void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
-	int count = 0;
-	float sum = 0;
-	int hist[15] = {};
-	for (int y = 0; y < h; y++) {
-		for (int x = 0; x < w; x++) {
-			data_t val = buf[y * WIDTH + x];
-			for (int z = 0; z < c; z++) {
-				int v = val[z].to_int();
-				count++;
-				sum += v;
-				hist[v]++;
-				if (count <= 20) {
-					printf("%d ", v);
-				}
-			}
-		}
-	}
-	printf("\n");
-	printf("mean=%f\n", sum / count);
-	for (int i = 15; i > 8; --i) {
-		printf("[%d]=%d ", 8 - i, hist[i]);
-	}
-	for (int i = 0; i < 8; i++) {
-		printf("[%d]=%d ", i, hist[i]);
-	}
-	printf("\n");
 }
 
 void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
@@ -825,7 +795,7 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 #pragma HLS bind_storage variable=odd_thr type=ram_1p impl=bram
 #pragma HLS bind_storage variable=mat_wi type=ram_1p impl=bram
 
-	static linebuf_t linebuf;
+	linebuf_t linebuf;
 
 	read_input(ins, even_buf);
 	read_weight(16, 3, ins, even_wi, even_thr);
@@ -836,12 +806,12 @@ void kernel_inner(fifo<uint64_t>& ins, int out[1]) {
 	// Conv_head ConvDPUnit
 	read_compute_conv1x1(
 		14, 14, 16, odd_wi, odd_thr, odd_buf, even_buf,
-		16, 3, ins, even_wi, even_thr);
+		16, 1, ins, even_wi, even_thr);
 	read_compute_conv3x3dw_relu(
 		14, 14, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
 		ins, mat_wi);
 	// YuNetBackbone
-	compute_maxpool2x2(14, 14, 16, odd_buf, even_buf);
+	compute_maxpool2x2(14, 14, odd_buf, even_buf);
 	compute_matmul_write(mat_wi, even_buf, out);
 }
 
