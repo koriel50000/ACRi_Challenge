@@ -9,7 +9,7 @@ public:
 
 	void shift_pixels_left() {
 #pragma HLS inline
-		for (int i = 0; i < ROWS * COLS - 1; i++) {
+		shift_pixels_left: for (int i = 0; i < ROWS * COLS - 1; i++) {
 #pragma HLS unroll
 			buf_[i] = buf_[i + 1];
 		}
@@ -17,7 +17,7 @@ public:
 
 	void insert_right_col(const T value[ROWS]) {
 #pragma HLS inline
-		for (int i = 0; i < ROWS; i++) {
+		insert_right_col: for (int i = 0; i < ROWS; i++) {
 #pragma HLS unroll
 			int idx = (i + 1) * COLS - 1;
 			buf_[idx] = value[i];
@@ -50,7 +50,7 @@ private:
 
 	void get_col(T value[KN - 1]) {
 #pragma HLS inline
-		for (int i = 0; i < KN - 1; i++) {
+		get_col: for (int i = 0; i < KN - 1; i++) {
 #pragma HLS unroll
 			value[i] = buf_[(head_ + i * W) & (W * (KN - 1) - 1)];
 		}

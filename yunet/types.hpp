@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#undef INLINE
 #include <ap_int.h>
 
 using uint4_t = ap_uint<4>;
@@ -13,12 +14,14 @@ private:
 public:
 	int_t() : buf_(0) {}
 	int_t(int i) : buf_(i) {}
-	int_t(unsigned int ui) : buf_(ui) {}
-	int_t(long l) : buf_(l) {}
-	int_t(unsigned long ul) : buf_(ul) {}
-	int_t(long long ll) : buf_(ll) {}
-	int_t(unsigned long long ull) : buf_(ull) {}
-	int_t(const char* s) : buf_(s) {}
+	int_t(uint64_t ul) : buf_(ul) {}
+	int_t(uint64_t w3, uint64_t w2, uint64_t w1, uint64_t w0) {
+		assert(N == 64 && W == 4);
+		buf_.range(256 - 1, 192) = w3;
+		buf_.range(192 - 1, 128) = w2;
+		buf_.range(128 - 1,  64) = w1;
+		buf_.range( 64 - 1,   0) = w0;
+	}
 
 	inline ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
@@ -30,7 +33,7 @@ public:
 		return buf_(W * index + W - 1, W * index);
 	}
 
-    unsigned long to_ulong() const {
-        return buf_.to_ulong();
-    }
+	unsigned long to_ulong() const {
+		return buf_.to_ulong();
+	}
 };

@@ -14,9 +14,13 @@ const int FILTER = 64;
 const int KERNEL = 3;
 const int THRESHOLD = 14;
 
+const int FEAT_WIDTH = WIDTH / 8;
+const int FEAT_HEIGHT = HEIGHT / 8;
+
 using uint4_t = ap_uint<4>;
 using data_t = int_t<CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH * 1];
+using block_feat_t = data_t[FEAT_HEIGHT * FEAT_WIDTH * 1];
 using block_conv_t = data_t[FILTER * 1 * KERNEL * KERNEL];
 using block_thr_t = int16_t[FILTER][THRESHOLD];
 using win_t = hls::vector<data_t, KERNEL * KERNEL>;
@@ -31,61 +35,61 @@ public:
 	void windowize(const int h, const int w, linebuf_t& linebuf, block_data_t& inb, fifo<win_t>& pips) {
 		linebuf.reset(w + KN - 1);
 
-        int x = 0 - (KN - 1) / 2;
-        int y = 0 - (KN - 1) / 2;
-		for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
+		int x = 0 - (KN - 1) / 2;
+		int y = 0 - (KN - 1) / 2;
+		windowize: for (int i = 0; i < (W + KN - 1) * (H + KN - 1); i++) {
 #pragma HLS pipeline
 			// @see UG1399, Vitis HLS Coding Styles > Loops > Variable Loop Bounds
 			if (i >= (w + KN - 1) * (h + KN - 1)) break;
-   			// input
-   			data_t val;
-    		if (0 <= x && x < w	&& 0 <= y && y < h) {
-	    		val = inb[y * WIDTH + x];
-		    } else {
-			    val = 0;
-   			}
-           // buffering
-   			if (i < (w + KN - 1) * (KN - 1)) {
-    			linebuf.insert_linebuf(val);
-	    	} else {
-			    linebuf.slide_window(val);
-   			}
+			// input
+			data_t val;
+			if (0 <= x && x < w	&& 0 <= y && y < h) {
+				val = inb[y * WIDTH + x];
+			} else {
+				val = 0;
+			}
+			// buffering
+			if (i < (w + KN - 1) * (KN - 1)) {
+				linebuf.insert_linebuf(val);
+			} else {
+				linebuf.slide_window(val);
+			}
  			// output
-   			if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
-   			    && (x - (KN - 1) / 2) % ST == 0 && (y - (KN - 1) / 2) % ST == 0)
-   			{
-    			win_t oval = linebuf.get_window();
-	    		pips.write(oval);
-	    	}
-		    x++;
-		    if (x >= w + (KN - 1) / 2) {
-                x = 0 - (KN - 1) / 2;
-		        y++;
-		    }
+			if ((KN - 1) / 2 <= x && (KN - 1) / 2 <= y
+					&& (x - (KN - 1) / 2) % ST == 0 && (y - (KN - 1) / 2) % ST == 0)
+			{
+				win_t oval = linebuf.get_window();
+				pips.write(oval);
+			}
+			x++;
+			if (x >= w + (KN - 1) / 2) {
+				x = 0 - (KN - 1) / 2;
+				y++;
+			}
 		}
 	}
 
-	void compute(const int h, const int w, const int c, const int f,
+	void compute(const int h, const int w, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		fifo<win_t>& pips, block_data_t& outb)
 	{
-		for (int y = 0; y < H; y++) {
+		compute_h: for (int y = 0; y < H; y++) {
 			if (y >= h) break;
-			for (int x = 0; x < W; x++) {
+			compute_w: for (int x = 0; x < W; x++) {
 				if (x >= w) break;
-				win_t val = pips.read();
-				data_t oval;
-				for (int j = 0; j < F; j++) {
+				win_t ival = pips.read();
+				data_t oval = 0;
+				compute_f: for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
 					if (j >= f) break;
 					int16_t acc = 0;
-					for (int k = 0; k < KN * KN; k++) {
-						acc += muladd<C>(c, val[k], wi[j * KN * KN + k]);
+					compute_k: for (int k = 0; k < KN * KN; k++) {
+						acc += muladd<C>(ival[k], wi[j * KN * KN + k]);
 					}
 					if (RELU) {
-    					oval[j] = batch_norm_relu(acc, thr[j]);
-	   				} else {
-		    			oval[j] = batch_norm(acc, thr[j]);
+						oval[j] = batch_norm_relu(acc, thr[j]);
+						} else {
+						oval[j] = batch_norm(acc, thr[j]);
 					}
 				}
 				outb[y * WIDTH + x] = oval;
@@ -94,23 +98,111 @@ public:
 	}
 };
 
-template <int H, int W, int C, int F>
-class Conv2D1x1 {
+template <int H, int W, int C, int F, int KN, bool RELU>
+class Conv2Ddepthwise : public Conv2D<H, W, C, F, KN, RELU> {
 public:
-	void compute(const int h, const int w, const int c, const int f,
+	void compute(const int h, const int w, const int f,
+		block_conv_t& wi, block_thr_t& thr,
+		fifo<win_t>& pips, block_data_t& outb)
+	{
+		compute_h: for (int y = 0; y < H; y++) {
+			if (y >= h) break;
+			compute_w: for (int x = 0; x < W; x++) {
+				if (x >= w) break;
+				win_t ival = pips.read();
+				data_t oval = 0;
+				compute_f: for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
+					if (j >= f) break;
+					data_t val = 0;
+					compute_k: for (int k = 0; k < KN * KN; k++) {
+#pragma HLS unroll
+						val[k] = ival[k][j];
+					}
+					int16_t acc = muladd<C>(val, wi[j]);
+					if (RELU) {
+						oval[j] = batch_norm_relu(acc, thr[j]);
+					} else {
+						oval[j] = batch_norm(acc, thr[j]);
+					}
+				}
+				outb[y * WIDTH + x] = oval;
+			}
+		}
+	}
+};
+
+template <int H, int W, int C, int F, int KN>
+class Conv2Dsinglechannel : public Conv2D<H, W, C, F, KN, false> {
+public:
+	void compute(const int h, const int w, const int f,
+		block_conv_t& wi, block_thr_t& thr,
+		fifo<win_t>& pips, block_data_t& outb)
+	{
+		compute_h: for (int y = 0; y < H; y++) {
+			if (y >= h) break;
+			compute_w: for (int x = 0; x < W; x++) {
+				if (x >= w) break;
+				win_t ival = pips.read();
+				data_t oval = 0;
+				compute_f: for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
+					if (j >= f) break;
+					data_t val = 0;
+					compute_k: for (int k = 0; k < KN * KN; k++) {
+#pragma HLS unroll
+						val[k] = ival[k][j];
+					}
+					int16_t acc = muladd<C>(val, wi[j]);
+					oval[j] = batch_norm(acc, thr[j]);
+				}
+				outb[y * WIDTH + x] = oval;
+			}
+		}
+	}
+};
+
+template <int H, int W, int C, int F>
+class Conv2Dpointwise {
+public:
+	void compute(const int h, const int w, const int f,
 		block_conv_t& wi, block_thr_t& thr,
 		block_data_t& inb, block_data_t& outb)
 	{
-		for (int y = 0; y < H; y++) {
+		compute_h: for (int y = 0; y < H; y++) {
 			if (y >= h) break;
-			for (int x = 0; x < W; x++) {
+			compute_w: for (int x = 0; x < W; x++) {
 				if (x >= w) break;
-				data_t val = inb[y * WIDTH + x];
-				data_t oval;
-				for (int j = 0; j < F; j++) {
+				data_t ival = inb[y * WIDTH + x];
+				data_t oval = 0;
+				compute_f: for (int j = 0; j < F; j++) {
 #pragma HLS pipeline
 					if (j >= f) break;
-					int16_t acc = muladd<C>(c, val, wi[j]);
+					int16_t acc = muladd<C>(ival, wi[j]);
+					oval[j] = batch_norm(acc, thr[j]);
+				}
+				outb[y * WIDTH + x] = oval;
+			}
+		}
+	}
+
+	void fuse_topdown_compute(const int h, const int w, const int f,
+		block_conv_t& wi, block_thr_t& thr,
+		block_feat_t& infb, block_data_t& inb, block_data_t& outb)
+	{
+		compute_h: for (int y = 0; y < H; y++) {
+			if (y >= h) break;
+			compute_w: for (int x = 0; x < W; x++) {
+				if (x >= w) break;
+				data_t ivald = infb[y * FEAT_WIDTH + x];
+				data_t ivalt = inb[y / 2 * WIDTH + x / 2];
+				data_t oval = 0;
+				compute_f: for (int j = 0; j < F; j++) {
+#pragma HLS pipeline
+					if (j >= f) break;
+					int16_t acc = 0;
+					acc += muladd<C>(ivald, wi[j]);
+					acc += muladd<C>(ivalt, wi[j]);
 					oval[j] = batch_norm(acc, thr[j]);
 				}
 				outb[y * WIDTH + x] = oval;
@@ -122,51 +214,69 @@ public:
 template <int H, int W, int C>
 class MaxPool2x2 {
 private:
-	void maxpool(const int c, const data_t v1, const data_t v2, data_t& ov) {
-		for (int z = 0; z < C; z++) {
+	void maxpool(const data_t v1, const data_t v2, data_t& ov) {
+		maxpool: for (int z = 0; z < C; z++) {
 #pragma HLS unroll
-			if (z >= c) break;
 			ov[z] = (v1[z] > v2[z]) ? v1[z] : v2[z];
 		}
 	}
 public:
-	void compute_h(const int h, const int w, const int c,
+	void compute_h(const int h, const int w,
 		block_data_t& inb, fifo<data_t>& pips)
 	{
-		for (int y = 0; y < H; y++) {
+		compute_h: for (int y = 0; y < H; y++) {
 			if (y >= h) break;
-			for (int x = 0; x < W; x += 2) {
+			compute_w: for (int x = 0; x < W; x += 2) {
 #pragma HLS pipeline
 				if (x >= w) break;
 				data_t val1 = inb[y * WIDTH + x];
 				data_t val2 = inb[y * WIDTH + x + 1];
 				data_t oval;
-				maxpool(c, val1, val2, oval);
+				maxpool(val1, val2, oval);
 				pips.write(oval);
 			}
 		}
 	}
 
-	void compute_v(const int oh, const int ow, const int oc,
+	void branch_feature_compute_h(const int h, const int w,
+		block_data_t& inb, block_feat_t& outfb, fifo<data_t>& pips)
+	{
+		compute_h: for (int y = 0; y < H; y++) {
+			if (y >= h) break;
+			compute_w: for (int x = 0; x < W; x += 2) {
+#pragma HLS pipeline
+				if (x >= w) break;
+				data_t val1 = inb[y * WIDTH + x];
+				data_t val2 = inb[y * WIDTH + x + 1];
+				outfb[y * FEAT_WIDTH + x] = val1;
+				outfb[y * FEAT_WIDTH + x + 1] = val2;
+				data_t oval;
+				maxpool(val1, val2, oval);
+				pips.write(oval);
+			}
+		}
+	}
+
+	void compute_v(const int oh, const int ow,
 		fifo<data_t>& pips, block_data_t& outb)
 	{
 		static data_t buf[W / 2];
 #pragma HLS array_partition variable=buf
 
-		for (int y = 0; y < H; y++) {
+		compute_h: for (int y = 0; y < H; y++) {
 			if (y >= oh) break;
-			for (int x = 0; x < W; x++) {
+			compute_w1: for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 				if (x >= ow) break;
 				buf[x] = pips.read();
 			}
-			for (int x = 0; x < W; x++) {
+			compute_w2: for (int x = 0; x < W; x++) {
 #pragma HLS pipeline
 				if (x >= ow) break;
 				data_t val1 = buf[x];
 				data_t val2 = pips.read();
 				data_t oval;
-				maxpool(oc, val1, val2, oval);
+				maxpool(val1, val2, oval);
 				outb[y * WIDTH + x] = oval;
 			}
 		}

@@ -14,21 +14,18 @@ inline int16_t mul(const uint4_t v, const uint4_t w) {
 }
 
 template <int C>
-int16_t muladd(const int c, const int_t<C> vu, const int_t<C> wi) {
+int16_t muladd(const int_t<C> vi, const int_t<C> wi) {
 	static int16_t t[C];
 #pragma HLS array_partition variable=t
 
-	for (int i = 0; i < C; i++) {
+	mul: for (int i = 0; i < C; i++) {
 #pragma HLS unroll
-		if (i >= c) break;
-		t[i] = mul(vu[i], wi[i]);
+		t[i] = mul(vi[i], wi[i]);
 	}
 
-	for (int d = 1; d < C; d *= 2) {
-		if (d >= c) break;
-		for (int i = 0; i < C; i += d * 2) {
+	add_outer : for (int d = 1; d < C; d *= 2) {
+		add_inner : for (int i = 0; i < C; i += d * 2) {
 #pragma HLS unroll
-			if (i >= c) break;
 			t[i] += t[i + d];
 		}
 	}
