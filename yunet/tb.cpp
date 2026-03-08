@@ -25,11 +25,6 @@ void threshold_padding_zero(hls::stream<uint64_t>& ins, int i) {
 }
 
 void input_stream(hls::stream<uint64_t>& ins) {
-	// torch.Size([1, 3, 160, 160])
-	for (int i = 0; i < 160 * 160; i++) {
-		ins.write(images[i]);
-	}
-
 	// YuNetBackbone stage0
 	// Conv_head
 
@@ -52,6 +47,11 @@ void input_stream(hls::stream<uint64_t>& ins) {
 	// torch.Size([16, 14])
 	for (int i = 0; i < 16 * 14; i++) {
 		ins.write(backbone_model0_conv2_quant1_threshold[i]);
+	}
+
+	// torch.Size([1, 3, 160, 160])
+	for (int i = 0; i < 160 * 160; i++) {
+		ins.write(images[i]);
 	}
 
 	// torch.Size([16, 1, 1, 9])
