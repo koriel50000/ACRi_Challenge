@@ -112,6 +112,8 @@ root_command() {
   # Source files
   regulation=$source_dir/regulation.txt
   tb=$source_dir/tb.cpp
+  #tb=$source_dir/all_tests.cpp
+  kernel_sources="$source_dir/kernel.cpp $source_dir/layers.cpp"
   kernel_source=$source_dir/kernel.cpp
   kernel_header=$source_dir/kernel.hpp
   
@@ -195,7 +197,7 @@ root_command() {
   fi
   
   get_qor
-  get_sim_time
+  # get_sim_time
   
   output_summary normal_exit=1
 }
@@ -553,7 +555,7 @@ check_csim() {
   
   cat << EOS > csim.tcl
 open_project -reset prj_csim
-add_files -cflags "$csim_cxxflags" $kernel_source
+add_files -cflags "$csim_cxxflags" "$kernel_sources"
 add_files -cflags "$csim_cxxflags -DCSIM" -tb $tb
 EOS
   
@@ -751,7 +753,7 @@ check_hls() {
   
   cat << EOS > hls.tcl
 open_project -reset prj_hls_cosim
-add_files -cflags "$hls_cxxflags" $kernel_source
+add_files -cflags "$hls_cxxflags" "$kernel_sources"
 set_top kernel
 open_solution -flow_target $flow solution
 set_part xcu200-fsgd2104-2-e

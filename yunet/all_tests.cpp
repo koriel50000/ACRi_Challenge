@@ -3,7 +3,7 @@
 #include "bitarith_test.hpp"
 #include "window_buffer_test.hpp"
 
-int main_bak(int argc, char** argv)
+int main(int argc, char** argv)
 {
 	std::vector<TestEntry> tests = {
 		TEST(BitArithTest::test_mul),

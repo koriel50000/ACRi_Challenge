@@ -35,7 +35,7 @@ public:
 					buf_[idx] = inb[ptr];
 				} else {
 					T val = inb[ptr >> 2];
-					buf_[idx] = T(val.word(ptr & 0x3));
+					buf_[idx] = T((uint64_t)val.word(ptr & 0x3));
 				}
 			} else {
 				buf_[idx] = 0;
