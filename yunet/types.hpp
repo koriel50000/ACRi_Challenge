@@ -6,6 +6,7 @@
 #include <ap_int.h>
 
 using uint4_t = ap_uint<4>;
+using bool_t = ap_uint<1>;
 
 template <int N, int W = 4>
 class int_t {

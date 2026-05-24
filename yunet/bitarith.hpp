@@ -6,11 +6,15 @@ inline int16_t mul(const uint4_t v, const uint4_t w) {
 		0, 1, 2, 3, 4, 6, 8, 12,
 		0, -1, -2, -3, -4, -6, -8, -12,
 	};
+	static const bool_t nz[] = { 0, 1, 1, 1, 1, 1, 1, 1 };
+	static const uint4_t shamt[] = { 0, 0, 1, 2, 3, 4, 5, 6 };
 #pragma HLS array_partition variable=v
+#pragma HLS array_partition variable=nz
+#pragma HLS array_partition variable=shamt
 
-	ap_uint<1> sign = v[3] ^ w[3];
-	int16_t oval = v0[(sign, v(2, 0))] * (w(2, 0) > 0);
-	return oval << (w(2, 0) - 1);
+	bool_t sign = v[3] ^ w[3];
+	int16_t oval = v0[(sign, v(2, 0))] * nz[w(2, 0)];
+	return oval << shamt[w(2, 0)];
 }
 
 template <int C>
@@ -32,13 +36,13 @@ int16_t muladd(const int_t<C> vi, const int_t<C> wi) {
 }
 
 inline uint4_t batch_norm_relu(const int16_t acc, const int16_t thr[]) {
-	ap_uint<1> b0 = acc < thr[0];
-	ap_uint<1> b1 = acc < thr[1];
-	ap_uint<1> b2 = acc < thr[2];
-	ap_uint<1> b3 = acc < thr[3];
-	ap_uint<1> b4 = acc < thr[4];
-	ap_uint<1> b5 = acc < thr[5];
-	ap_uint<1> b6 = acc < thr[6];
+	bool_t b0 = acc < thr[0];
+	bool_t b1 = acc < thr[1];
+	bool_t b2 = acc < thr[2];
+	bool_t b3 = acc < thr[3];
+	bool_t b4 = acc < thr[4];
+	bool_t b5 = acc < thr[5];
+	bool_t b6 = acc < thr[6];
 	ap_uint<8> bits = (1, b6, b5, b4, b3, b2, b1, b0);
 	// @see UG1399, Vitis HLS Coding Styles > Functions > C/C++ Builtin Functions
 	return __builtin_ctz(bits);
@@ -50,20 +54,20 @@ inline uint4_t batch_norm(const int16_t acc, const int16_t thr[]) {
 	};
 #pragma HLS array_partition variable=indexTable
 
-	ap_uint<1> b0 = acc < thr[0];
-	ap_uint<1> b1 = acc < thr[1];
-	ap_uint<1> b2 = acc < thr[2];
-	ap_uint<1> b3 = acc < thr[3];
-	ap_uint<1> b4 = acc < thr[4];
-	ap_uint<1> b5 = acc < thr[5];
-	ap_uint<1> b6 = acc < thr[6];
-	ap_uint<1> b7 = acc < thr[7];
-	ap_uint<1> b8 = acc < thr[8];
-	ap_uint<1> b9 = acc < thr[9];
-	ap_uint<1> b10 = acc < thr[10];
-	ap_uint<1> b11 = acc < thr[11];
-	ap_uint<1> b12 = acc < thr[12];
-	ap_uint<1> b13 = acc < thr[13];
+	bool_t b0 = acc < thr[0];
+	bool_t b1 = acc < thr[1];
+	bool_t b2 = acc < thr[2];
+	bool_t b3 = acc < thr[3];
+	bool_t b4 = acc < thr[4];
+	bool_t b5 = acc < thr[5];
+	bool_t b6 = acc < thr[6];
+	bool_t b7 = acc < thr[7];
+	bool_t b8 = acc < thr[8];
+	bool_t b9 = acc < thr[9];
+	bool_t b10 = acc < thr[10];
+	bool_t b11 = acc < thr[11];
+	bool_t b12 = acc < thr[12];
+	bool_t b13 = acc < thr[13];
 	ap_uint<15> bits = (0, b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13);
 	// @see HD, Figure 5-26. Number of trailing zeros using a de Brujin cycle.
 	// https://en.wikipedia.org/wiki/De_Bruijn_sequence
