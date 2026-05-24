@@ -23,6 +23,11 @@ public:
 		buf_.range( 64 - 1,   0) = w0;
 	}
 
+	inline ap_range_ref<W*N, false> word(size_t seg) const {
+		assert(seg < 4);
+		return buf_(64 * seg + 64 - 1, 64 * seg);
+	}
+
 	inline ap_range_ref<W*N, false> operator[](size_t index) const {
 		assert(index < N);
 		return buf_(W * index + W - 1, W * index);
@@ -33,7 +38,7 @@ public:
 		return buf_(W * index + W - 1, W * index);
 	}
 
-	unsigned long to_ulong() const {
-		return buf_.to_ulong();
+	inline uint64_t to_uint64() const {
+		return buf_.to_uint64();
 	}
 };

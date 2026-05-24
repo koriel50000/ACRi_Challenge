@@ -1,4 +1,4 @@
-#pragma once
+//#pragma once
 #include "types.hpp"
 
 inline int16_t mul(const uint4_t v, const uint4_t w) {
@@ -25,7 +25,6 @@ int16_t muladd(const int_t<C> vi, const int_t<C> wi) {
 
 	add_outer : for (int d = 1; d < C; d *= 2) {
 		add_inner : for (int i = 0; i < C; i += d * 2) {
-#pragma HLS unroll
 			t[i] += t[i + d];
 		}
 	}

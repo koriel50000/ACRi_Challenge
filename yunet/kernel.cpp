@@ -1,546 +1,328 @@
 #include "kernel.hpp"
 #include "layers.hpp"
 
-void read_input(fifo<uint64_t>& ins, block_data_t& outb) {
-	read_data_h: for (int y = 0; y < HEIGHT; y++) {
-		read_data_w: for (int x = 0; x < WIDTH; x++) {
-#pragma HLS pipeline
-			data_t val = data_t(ins.read());
-			outb[y * WIDTH + x] = val;
-		}
+void read_input(fifo<axis_data>& ins, block_data_t& outb) {
+#pragma HLS inline off
+	read_input_hw: for (int i = 0; i < HEIGHT * WIDTH; i++) {
+		uint64_t w0 = ins.read().data;
+		uint64_t w1 = ins.read().data;
+		uint64_t w2 = ins.read().data;
+		uint64_t w3 = ins.read().data;
+		outb[i] = data_t(w3, w2, w1, w0);
 	}
 }
 
-template <bool CONCAT = false>
-void read_weight(const int f, const int kn,
-	fifo<uint64_t>& ins, block_conv_t& outw, block_thr_t& outh)
+void read_weight(const int f, const int kn, const bool concat,
+	fifo<axis_data>& ins, block_conv_t& outw, block_thr_t& outh)
 {
+#pragma HLS inline off
 	read_weight_f: for (int i = 0; i < FILTER * KERNEL * KERNEL; i++) {
-#pragma HLS pipeline
-		if (i >= f * kn * kn) break;
-		if (CONCAT) {
-			uint64_t w3 = ins.read();
-			uint64_t w2 = ins.read();
-			uint64_t w1 = ins.read();
-			uint64_t w0 = ins.read();
-			outw[i] = data_t(w3, w2, w1, w0);
-		} else {
-			outw[i] = data_t(ins.read());
+		if (i < f * kn * kn) {
+			if (concat) {
+				uint64_t w3 = ins.read().data;
+				uint64_t w2 = ins.read().data;
+				uint64_t w1 = ins.read().data;
+				uint64_t w0 = ins.read().data;
+				outw[i] = data_t(w3, w2, w1, w0);
+			} else {
+				uint64_t w = ins.read().data;
+				outw[i] = data_t(w);
+			}
 		}
 	}
 
 	read_threshold_f: for (int j = 0; j < FILTER; j++) {
-		if (j >= f) break;
-		read_threshold_t: for (int i = 0; i < THRESHOLD; i++) {
-#pragma HLS pipeline
-			outh[j][i] = ins.read();
+		if (j < f) {
+			read_threshold_t: for (int i = 0; i < THRESHOLD; i++) {
+				outh[j][i] = ins.read().data;
+			}
 		}
 	}
 }
 
-void read_compute_conv3x3_stride(
-	const int h, const int w, const int f, linebuf_t& linebuf,
-	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
-	const int nf, const int nkn,
-	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
-{
-	Conv2D<HEIGHT,WIDTH,CHANNEL,FILTER,KERNEL,true,2> conv3x3_stride;
-	fifo<win_t> pips1("pipe_fifo1");
-
-#pragma HLS dataflow
-	conv3x3_stride.windowize(h, w, linebuf, inb, pips1);
-	conv3x3_stride.compute(h / 2, w / 2, f, cur_wi, cur_thr, pips1, outb);
-	read_weight(nf, nkn, ins, next_wi, next_thr);
+void write_output(const int h, const int w, fifo<data_t>& ins, fifo<axis_data>& outs) {
+	write_output_hw: for (int i = 0; i < FEAT_HEIGHT * FEAT_WIDTH; i++) {
+		if (i < h * w) {
+			axis_data pkt;
+			pkt.data = ins.read().to_uint64();
+			pkt.last = (i == h * w - 1) ? 1 : 0;
+			outs.write(pkt);
+		}
+	}
 }
 
-void read_compute_conv1x1(
-	const int h, const int w, const int f,
-	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
-	const int nf, const int nkn,
-	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
-{
-	Conv2Dpointwise<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
-
-#pragma HLS dataflow
-	conv1x1.compute(h, w, f, cur_wi, cur_thr, inb, outb);
-	read_weight(nf, nkn, ins, next_wi, next_thr);
+void branch_to_feature(const int h, const int w, fifo<data_t>& ins, block_data_t& outb, block_feat_t& outfb) {
+	copy_to_feature_hw: for (int i = 0; i < FEAT_HEIGHT * FEAT_WIDTH; i++) {
+		if (i < h * w) {
+			data_t val = ins.read();
+			outb[i] = val;
+			outfb[i] = val;
+		}
+	}
 }
 
-template <bool CONCAT = false>
-void read_compute_conv3x3dw_relu(
-	const int h, const int w, const int f, linebuf_t& linebuf,
-	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
-	const int nf, const int nkn,
-	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
-{
-	Conv2Ddepthwise<HEIGHT,WIDTH,CHANNEL,FILTER,3,true> conv3x3_depthwise;
-	fifo<win_t> pips1("pipe_fifo1");
-
-#pragma HLS dataflow
-	conv3x3_depthwise.windowize(h, w, linebuf, inb, pips1);
-	conv3x3_depthwise.compute(h, w, f, cur_wi, cur_thr, pips1, outb);
-	read_weight<CONCAT>(nf, nkn, ins, next_wi, next_thr);
+void array_to_stream(const int h, const int w, data_ptr_t inb, fifo<data_t>& outs) {
+	array_to_stream_hw: for (int i = 0; i < HEIGHT * WIDTH; i++) {
+		if (i < h * w) {
+			outs.write(*inb++);
+		}
+	}
 }
 
-template <bool CONCAT = false>
-void read_compute_conv3x3sc(
-	const int h, const int w, const int f, linebuf_t& linebuf,
-	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb,
-	const int nf, const int nkn,
-	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
-{
-	Conv2Dsinglechannel<HEIGHT,WIDTH,CHANNEL,FILTER,3> conv3x3_singlechannel;
-	fifo<win_t> pips1("pipe_fifo1");
-
-#pragma HLS dataflow
-	conv3x3_singlechannel.windowize(h, w, linebuf, inb, pips1);
-	conv3x3_singlechannel.compute(h, w, f, cur_wi, cur_thr, pips1, outb);
-	read_weight<CONCAT>(nf, nkn, ins, next_wi, next_thr);
+void stream_to_array(const int h, const int w, fifo<data_t>& ins, data_ptr_t outb) {
+	stream_to_array_hw: for (int i = 0; i < HEIGHT * WIDTH; i++) {
+		if (i < h * w) {
+			*outb++ = ins.read();
+		}
+	}
 }
 
-void read_compute_conv3x3sc(
-	const int h, const int w, const int f, linebuf_t& linebuf,
-	block_conv_t& cur_wi, block_thr_t& cur_thr, block_data_t& inb, block_data_t& outb)
-{
-	Conv2Dsinglechannel<HEIGHT,WIDTH,CHANNEL,FILTER,3> conv3x3_singlechannel;
-	fifo<win_t> pips1("pipe_fifo1");
-
-#pragma HLS dataflow
-	conv3x3_singlechannel.windowize(h, w, linebuf, inb, pips1);
-	conv3x3_singlechannel.compute(h, w, f, cur_wi, cur_thr, pips1, outb);
-}
-
-void fuse_topdown_compute_conv1x1(
-	const int h, const int w, const int f,
-	block_conv_t& cur_wi, block_thr_t& cur_thr, block_feat_t& infb, block_data_t& inb, block_data_t& outb,
-	const int nf, const int nkn,
-	fifo<uint64_t>& ins, block_conv_t& next_wi, block_thr_t& next_thr)
-{
-	Conv2Dpointwise<HEIGHT,WIDTH,CHANNEL,FILTER> conv1x1;
-
-#pragma HLS dataflow
-	conv1x1.fuse_topdown_compute(h, w, f, cur_wi, cur_thr, infb, inb, outb);
-	read_weight(nf, nkn, ins, next_wi, next_thr);
-}
-
-void compute_maxpool2x2(const int h, const int w,
-	block_data_t& inb, block_data_t& outb)
-{
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool2x2;
-	fifo<data_t> pips1("pipe_fifo1");
-
-#pragma HLS dataflow
-	maxpool2x2.compute_h(h, w, inb, pips1);
-	maxpool2x2.compute_v(h / 2, w / 2, pips1, outb);
-}
-
-void branch_compute_maxpool2x2(const int h, const int w,
-	block_data_t& inb, block_feat_t& outfb, block_data_t& outb)
-{
-	MaxPool2x2<HEIGHT,WIDTH,CHANNEL> maxpool2x2;
-	fifo<data_t> pips1("pipe_fifo1");
-
-#pragma HLS dataflow
-	maxpool2x2.branch_feature_compute_h(h, w, inb, outfb, pips1);
-	maxpool2x2.compute_v(h / 2, w / 2, pips1, outb);
-}
-
-void print_data_hist(const int h, const int w, const int c, block_data_t& buf) {
-	static const int16_t v0[] = {
-		0, 1, 2, 3, 4, 6, 8, 12,
-		0, -1, -2, -3, -4, -6, -8, -12,
-	};
-
-	int count = 0;
-	float sum = 0;
-	int hist[16] = {};
-	for (int y = 0; y < h; y++) {
-		for (int x = 0; x < w; x++) {
-			data_t val = buf[y * WIDTH + x];
-			for (int z = 0; z < c; z++) {
-				int v = val[z].to_int();
-				count++;
-				sum += v;
-				hist[v]++;
-				if (count <= 20) {
-					printf("%d ", v0[v]);
+void fuse_array2x_to_stream(const int h, const int w, data_ptr_t inbd, data_ptr_t inbt, fifo<data_t>& outs) {
+	resize2x_array_to_stream_h: for (int y = 0; y < HEIGHT; y += 2) {
+		if (y < h) {
+			block_feat_t tmpb;
+			resize2x_array_to_stream_w1: for (int x = 0; x < WIDTH; x += 2) {
+				if (x < w) {
+					tmpb[x / 2] = *inbt++;
+					outs.write(*inbd++);
+					outs.write(tmpb[x / 2]);
+					outs.write(*inbd++);
+					outs.write(tmpb[x / 2]);
+				}
+			}
+			resize2x_array_to_stream_w2: for (int x = 0; x < WIDTH; x += 2) {
+				if (x < w) {
+					outs.write(*inbd++);
+					outs.write(tmpb[x / 2]);
+					outs.write(*inbd++);
+					outs.write(tmpb[x / 2]);
 				}
 			}
 		}
 	}
-	printf("\n");
-	printf("mean=%f count=%d\n", sum / count, count);
-	for (int i = 15; i > 8; --i) {
-		printf("[%d]=%d ", 8 - i, hist[i]);
-	}
-	for (int i = 0; i < 8; i++) {
-		printf("[%d]=%d ", i, hist[i]);
-	}
-	printf("\n");
 }
 
-void print_feature_hist(const int h, const int w, const int c, block_feat_t& buf) {
-	static const int16_t v0[] = {
-		0, 1, 2, 3, 4, 6, 8, 12,
-		0, -1, -2, -3, -4, -6, -8, -12,
-	};
-
-	int count = 0;
-	float sum = 0;
-	int hist[16] = {};
-	for (int y = 0; y < h; y++) {
-		for (int x = 0; x < w; x++) {
-			data_t val = buf[y * FEAT_WIDTH + x];
-			for (int z = 0; z < c; z++) {
-				int v = val[z].to_int();
-				count++;
-				sum += v;
-				hist[v]++;
-				if (count <= 20) {
-					printf("%d ", v0[v]);
-				}
-			}
-		}
+void select_array_to_stream(const int h, const int w, const ConvMode& mode,
+	block_data_t& inb, block_feat_t& infb, fifo<data_t>& outs)
+{
+	switch (mode.op) {
+	case SpatialOp:
+		Conv2D::windowize(HEIGHT * 2, WIDTH * 2, mode.stride, mode.depthwise, inb, outs);
+		break;
+	case DepthwiseOp:
+	case DepthwiseBrOp:
+	case DepthwiseHeadOp:
+	case SingleChannelOp:
+		Conv2D::windowize(h, w, mode.stride, mode.depthwise, inb, outs);
+		break;
+	case PointwiseOp:
+		array_to_stream(h, w, inb, outs);
+		break;
+	case PointwiseHeadOp:
+		array_to_stream(h, w, infb, outs);
+		break;
+	case FuseTopDownOp:
+		fuse_array2x_to_stream(h, w, infb, inb, outs);
+		break;
 	}
-	printf("\n");
-	printf("mean=%f count=%d\n", sum / count, count);
-	for (int i = 15; i > 8; --i) {
-		printf("[%d]=%d ", 8 - i, hist[i]);
-	}
-	for (int i = 0; i < 8; i++) {
-		printf("[%d]=%d ", i, hist[i]);
-	}
-	printf("\n");
 }
 
-void print_param_hist(const int f, const int kn, const int c, block_conv_t& wi, block_thr_t& thr) {
-	static const int16_t v0[] = {
-		0, 1, 2, 4, 8, 16, 32, 64,
-		0, -1, -2, -4, -8, -16, -32, -64,
-	};
-
-	int count = 0;
-	float sum = 0;
-	int hist[16] = {};
-	for (int i = 0; i < f * kn * kn; i++) {
-		data_t val = wi[i];
-		for (int z = 0; z < c; z++) {
-			int v = val[z].to_int();
-			count++;
-			sum += v;
-			hist[v]++;
-			if (count <= 20) {
-				printf("%d ", v0[v]);
-			}
-		}
+void select_stream_to_array(const int h, const int w, const ConvMode& mode,
+	block_data_t& outb, block_feat_t& outfb, fifo<data_t>& ins, fifo<axis_data>& outs)
+{
+	switch (mode.op) {
+	case SpatialOp:
+	case DepthwiseOp:
+	case PointwiseOp:
+	case PointwiseHeadOp:
+	case FuseTopDownOp:
+		stream_to_array(h, w, ins, outb);
+		break;
+	case DepthwiseHeadOp:
+		stream_to_array(h, w, ins, outfb);
+		break;
+	case DepthwiseBrOp:
+		branch_to_feature(h, w, ins, outb, outfb);
+		break;
+	case SingleChannelOp:
+		write_output(h, w, ins, outs);
+		break;
 	}
-
-	printf("\n");
-	printf("mean=%f count=%d\n", sum / count, count);
-	for (int i = 15; i > 8; --i) {
-		printf("[%d]=%d ", 8 - i, hist[i]);
-	}
-	for (int i = 0; i < 8; i++) {
-		printf("[%d]=%d ", i, hist[i]);
-	}
-	printf("\n");
-
-	for (int j = 0; j < f; j++) {
-		printf("[%d] = { ", j);
-		for (int i = 0; i < THRESHOLD; i++) {
-			printf("%d, ", thr[j][i]);
-		}
-		printf("}\n");
-	}
-	printf("\n");
 }
 
-void kernel(fifo<uint64_t>& ins, int out[16]) {
+void read_compute_conv(const int h , const int w, const int f, const ConvMode& mode,
+	const int nf, const bool concat, fifo<axis_data>& ins, fifo<axis_data>& outs,
+	const block_conv_t& cur_wi, const block_thr_t& cur_thr,
+	block_data_t& inb, block_feat_t& infb, block_data_t& outb, block_feat_t& outfb,
+	block_conv_t& next_wi, block_thr_t& next_thr)
+{
+#pragma HLS inline off
+	fifo<data_t> pips1("pipe1_fifo");
+	fifo<data_t> pips2("pipe2_fifo");
+#pragma HLS stream variable=pips1 depth=16
+#pragma HLS stream variable=pips2 depth=16
+
+#pragma HLS dataflow
+
+	select_array_to_stream(h, w, mode, inb, infb, pips1);
+	Conv2D::compute(h, w, f, mode, cur_wi, cur_thr, pips1, pips2);
+	select_stream_to_array(h, w, mode, outb, outfb, pips2, outs);
+	read_weight(nf, 1, concat, ins, next_wi, next_thr);
+}
+
+void maxpool(const int ih, const int iw, const int oh, const int ow,
+	block_data_t& iob, block_data_t& tmpb)
+{
+#pragma HLS inline off
+	MaxPool2x2::compute_h(ih, iw, iob, tmpb);
+	MaxPool2x2::compute_v(oh, ow, tmpb, iob);
+}
+
+void kernel(fifo<axis_data>& ins, fifo<axis_data>& outs) {
 #pragma HLS interface axis port=ins
-#pragma HLS interface axis port=out
+#pragma HLS interface axis port=outs
+#pragma HLS interface ap_ctrl_none port=return
 
-	static block_data_t even_buf;
-	static block_data_t odd_buf;
-	static block_conv_t even_wi;
-	static block_thr_t even_thr;
-	static block_conv_t odd_wi;
-	static block_thr_t odd_thr;
-#pragma HLS bind_storage variable=even_buf type=ram_2p impl=bram
-#pragma HLS bind_storage variable=odd_buf type=ram_2p impl=bram
-#pragma HLS bind_storage variable=even_wi type=ram_1p impl=bram
-#pragma HLS bind_storage variable=even_thr type=ram_1p impl=bram
-#pragma HLS bind_storage variable=odd_wi type=ram_1p impl=bram
-#pragma HLS bind_storage variable=odd_thr type=ram_1p impl=bram
+	static block_data_t buf1;
+	static block_data_t buf2;
+	static block_conv_t wi1;
+	static block_thr_t thr1;
+	static block_conv_t wi2;
+	static block_thr_t thr2;
+#pragma HLS bind_storage variable=buf1 type=ram_1p impl=bram
+#pragma HLS bind_storage variable=buf2 type=ram_1p impl=bram
+#pragma HLS bind_storage variable=wi1 type=ram_1p impl=bram
+#pragma HLS bind_storage variable=wi2 type=ram_1p impl=bram
 
-	static block_feat_t feature8_buf;
-	static block_feat_t feature16_buf;
-#pragma HLS bind_storage variable=feature8_buf type=ram_1p impl=bram
-#pragma HLS bind_storage variable=feature16_buf type=ram_1p impl=bram
+	static block_feat_t feat0;
+	static block_feat_t feat1;
+	static block_feat_t feat8;
+	static block_feat_t feat16;
+	static block_feat_t feat32;
+#pragma HLS bind_storage variable=feat8 type=ram_1p impl=bram
+#pragma HLS bind_storage variable=feat16 type=ram_1p impl=bram
+#pragma HLS bind_storage variable=feat32 type=ram_1p impl=bram
 
-	static block_data_t stride8_buf;
-	static block_data_t stride16_buf;
-	static block_data_t stride32_buf;
-#pragma HLS bind_storage variable=stride8_buf type=ram_2p impl=bram
-#pragma HLS bind_storage variable=stride16_buf type=ram_2p impl=bram
-#pragma HLS bind_storage variable=stride32_buf type=ram_2p impl=bram
-
-	linebuf_t linebuf;
-
-	read_input(ins, even_buf);
-	read_weight(16, 3, ins, even_wi, even_thr);
 	// YuNetBackbone stage0
 	// Conv_head
-	read_compute_conv3x3_stride(
-		160, 160, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		16, 1, ins, odd_wi, odd_thr);
+	read_input(ins, buf2);
+	read_weight(16, 3, false, ins, wi1, thr1);
+	read_compute_conv(80, 80, 16, Spatial, 16, false, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// Conv_head ConvDPUnit
-	read_compute_conv1x1(
-		80, 80, 16, odd_wi, odd_thr, odd_buf, even_buf,
-		16, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu(
-		80, 80, 16, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		16, 1, ins, odd_wi, odd_thr);
-	compute_maxpool2x2(80, 80, odd_buf, even_buf);
+	read_compute_conv(80, 80, 16, Pointwise, 16, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(80, 80, 16, Depthwise, 16, false, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
+	maxpool(80, 80, 40, 40, buf1, buf2);
 
 	// YuNetBackbone stage1
 	// YuNetBackbone Conv4layerBlock 1
-	read_compute_conv1x1(
-		40, 40, 16, odd_wi, odd_thr, even_buf, odd_buf,
-		16, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu(
-		40, 40, 16, linebuf, even_wi, even_thr, odd_buf, even_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(40, 40, 16, Pointwise, 16, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(40, 40, 16, Depthwise, 64, false, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNetBackbone Conv4layerBlock 2
-	read_compute_conv1x1(
-		40, 40, 64, odd_wi, odd_thr, even_buf, odd_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		40, 40, 64, linebuf, even_wi, even_thr, odd_buf, even_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(40, 40, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(40, 40, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 
 	// YuNetBackbone stage2
 	// YuNetBackbone Conv4layerBlock 1
-	read_compute_conv1x1(
-		40, 40, 64, odd_wi, odd_thr, even_buf, odd_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		40, 40, 64, linebuf, even_wi, even_thr, odd_buf, even_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(40, 40, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(40, 40, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNetBackbone Conv4layerBlock 2
-	read_compute_conv1x1(
-		40, 40, 64, odd_wi, odd_thr, even_buf, odd_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		40, 40, 64, linebuf, even_wi, even_thr, odd_buf, even_buf,
-		64, 1, ins, odd_wi, odd_thr);
-	compute_maxpool2x2(40, 40, even_buf, odd_buf);
+	read_compute_conv(40, 40, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(40, 40, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
+	maxpool(40, 40, 20, 20, buf1, buf2);
 
 	// YuNetBackbone stage3
 	// YuNetBackbone Conv4layerBlock 1
-	read_compute_conv1x1(
-		20, 20, 64, odd_wi, odd_thr, odd_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		20, 20, 64, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(20, 20, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNetBackbone Conv4layerBlock 2
-	read_compute_conv1x1(
-		20, 20, 64, odd_wi, odd_thr, odd_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		20, 20, 64, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		64, 1, ins, odd_wi, odd_thr);
-	branch_compute_maxpool2x2(20, 20, odd_buf, feature8_buf, even_buf);
+	read_compute_conv(20, 20, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 64, DepthwiseBr, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat8, wi2, thr2);
+	maxpool(20, 20, 10, 10, buf1, buf2);
 
 	// YuNetBackbone stage4
 	// YuNetBackbone Conv4layerBlock 1
-	read_compute_conv1x1(
-		10, 10, 64, odd_wi, odd_thr, even_buf, odd_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		10, 10, 64, linebuf, even_wi, even_thr, odd_buf, even_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(10, 10, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNetBackbone Conv4layerBlock 2
-	read_compute_conv1x1(
-		10, 10, 64, odd_wi, odd_thr, even_buf, odd_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		10, 10, 64, linebuf, even_wi, even_thr, odd_buf, even_buf,
-		64, 1, ins, odd_wi, odd_thr);
-	branch_compute_maxpool2x2(10, 10, even_buf, feature16_buf, odd_buf);
+	read_compute_conv(10, 10, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 64, DepthwiseBr, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat16, wi2, thr2);
+	maxpool(10, 10, 5, 5, buf1, buf2);
 
 	// YuNetBackbone stage5
 	// YuNetBackbone Conv4layerBlock 1
-	read_compute_conv1x1(
-		5, 5, 64, odd_wi, odd_thr, odd_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		5, 5, 64, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(5, 5, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNetBackbone Conv4layerBlock 2
-	read_compute_conv1x1(
-		5, 5, 64, odd_wi, odd_thr, odd_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		5, 5, 64, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(5, 5, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 64, Depthwise, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 
 	// TFPN stride32
 	// TFPN ConvDPUnit
-	read_compute_conv1x1(
-		5, 5, 64, odd_wi, odd_thr, odd_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		5, 5, 64, linebuf, even_wi, even_thr, even_buf, stride32_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(5, 5, 64, Pointwise, 64, false, ins, outs, wi2, thr2, buf1, feat0, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 64, DepthwiseBr, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat32, wi2, thr2);
 	// TFPN stride16
 	// TFPN ConvDPUnit
-	fuse_topdown_compute_conv1x1(
-		10, 10, 64, odd_wi, odd_thr, feature16_buf, stride32_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		10, 10, 64, linebuf, even_wi, even_thr, even_buf, stride16_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(10, 10, 64, FuseTopDown, 64, false, ins, outs, wi2, thr2, buf1, feat16, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 64, DepthwiseBr, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat16, wi2, thr2);
 	// TFPN stride8
 	// TFPN ConvDPUnit
-	fuse_topdown_compute_conv1x1(
-		20, 20, 64, odd_wi, odd_thr, feature8_buf, stride16_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		20, 20, 64, linebuf, even_wi, even_thr, even_buf, stride8_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(20, 20, 64, FuseTopDown, 64, false, ins, outs, wi2, thr2, buf1, feat8, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 64, DepthwiseBr, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat8, wi2, thr2);
 
 	// YuNet_Head stride8
 	// YuNet_Head shared ConvDPUnit
-	read_compute_conv1x1(
-		20, 20, 64, odd_wi, odd_thr, stride8_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		20, 20, 64, linebuf, even_wi, even_thr, even_buf, stride8_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(20, 20, 64, PointwiseHead, 64, false, ins, outs, wi2, thr2, buf1, feat8, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 64, DepthwiseHead, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat8, wi2, thr2);
 	// YuNet_Head stride16
 	// YuNet_Head shared ConvDPUnit
-	read_compute_conv1x1(
-		10, 10, 64, odd_wi, odd_thr, stride16_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		10, 10, 64, linebuf, even_wi, even_thr, even_buf, stride16_buf,
-		64, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(10, 10, 64, PointwiseHead, 64, false, ins, outs, wi2, thr2, buf1, feat16, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 64, DepthwiseHead, 64, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat16, wi2, thr2);
 	// YuNet_Head stride32
 	// YuNet_Head shared ConvDPUnit
-	read_compute_conv1x1(
-		5, 5, 64, odd_wi, odd_thr, stride32_buf, even_buf,
-		64, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3dw_relu<true>(
-		5, 5, 64, linebuf, even_wi, even_thr, even_buf, stride32_buf,
-		1, 1, ins, odd_wi, odd_thr);
+	read_compute_conv(5, 5, 64, PointwiseHead, 64, false, ins, outs, wi2, thr2, buf1, feat32, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 64, DepthwiseHead, 1, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat32, wi2, thr2);
 
 	// YuNet_Head cls ConvDPUnit
 	// YuNet_Head stride8
-	read_compute_conv1x1(
-		20, 20, 1, odd_wi, odd_thr, stride8_buf, even_buf,
-		1, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		20, 20, 1, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		1, 1, ins, odd_wi, odd_thr);
-	print_data_hist(20, 20, 1, odd_buf);
+	read_compute_conv(20, 20, 1, PointwiseHead, 1, false, ins, outs, wi2, thr2, buf1, feat8, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 1, SingleChannel, 1, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride16
-	read_compute_conv1x1(
-		10, 10, 1, odd_wi, odd_thr, stride16_buf, even_buf,
-		1, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		10, 10, 1, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		1, 1, ins, odd_wi, odd_thr);
-	print_data_hist(10, 10, 1, odd_buf);
+	read_compute_conv(10, 10, 1, PointwiseHead, 1, false, ins, outs, wi2, thr2, buf1, feat16, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 1, SingleChannel, 1, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride32
-	read_compute_conv1x1(
-		5, 5, 1, odd_wi, odd_thr, stride32_buf, even_buf,
-		1, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		5, 5, 1, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		4, 1, ins, odd_wi, odd_thr);
-	print_data_hist(5, 5, 1, odd_buf);
+	read_compute_conv(5, 5, 1, PointwiseHead, 1, false, ins, outs, wi2, thr2, buf1, feat32, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 1, SingleChannel, 4, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 
 	// YuNet_Head bbox ConvDPUnit
 	// YuNet_Head stride8
-	read_compute_conv1x1(
-		20, 20, 4, odd_wi, odd_thr, stride8_buf, even_buf,
-		4, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		20, 20, 4, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		4, 1, ins, odd_wi, odd_thr);
-	print_data_hist(20, 20, 4, odd_buf);
+	read_compute_conv(20, 20, 4, PointwiseHead, 4, false, ins, outs, wi2, thr2, buf1, feat8, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 4, SingleChannel, 4, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride16
-	read_compute_conv1x1(
-		10, 10, 4, odd_wi, odd_thr, stride16_buf, even_buf,
-		4, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		10, 10, 4, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		4, 1, ins, odd_wi, odd_thr);
-	print_data_hist(10, 10, 4, odd_buf);
+	read_compute_conv(10, 10, 4, PointwiseHead, 4, false, ins, outs, wi2, thr2, buf1, feat16, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 4, SingleChannel, 4, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride32
-	read_compute_conv1x1(
-		5, 5, 4, odd_wi, odd_thr, stride32_buf, even_buf,
-		4, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		5, 5, 4, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		1, 1, ins, odd_wi, odd_thr);
-	print_data_hist(5, 5, 4, odd_buf);
+	read_compute_conv(5, 5, 4, PointwiseHead, 4, false, ins, outs, wi2, thr2, buf1, feat32, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 4, SingleChannel, 1, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 
 	// YuNet_Head obj ConvDPUnit
 	// YuNet_Head stride8
-	read_compute_conv1x1(
-		20, 20, 1, odd_wi, odd_thr, stride8_buf, even_buf,
-		1, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		20, 20, 1, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		1, 1, ins, odd_wi, odd_thr);
-	print_data_hist(20, 20, 1, odd_buf);
+	read_compute_conv(20, 20, 1, PointwiseHead, 1, false, ins, outs, wi2, thr2, buf1, feat8, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 1, SingleChannel, 1, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride16
-	read_compute_conv1x1(
-		10, 10, 1, odd_wi, odd_thr, stride16_buf, even_buf,
-		1, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		10, 10, 1, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		1, 1, ins, odd_wi, odd_thr);
-	print_data_hist(10, 10, 1, odd_buf);
+	read_compute_conv(10, 10, 1, PointwiseHead, 1, false, ins, outs, wi2, thr2, buf1, feat16, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 1, SingleChannel, 1, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride32
-	read_compute_conv1x1(
-		5, 5, 1, odd_wi, odd_thr, stride32_buf, even_buf,
-		1, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		5, 5, 1, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		10, 1, ins, odd_wi, odd_thr);
-	print_data_hist(5, 5, 1, odd_buf);
+	read_compute_conv(5, 5, 1, PointwiseHead, 1, false, ins, outs, wi2, thr2, buf1, feat32, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 1, SingleChannel, 10, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 
 	// YuNet_Head kps ConvDPUnit
 	// YuNet_Head stride8
-	read_compute_conv1x1(
-		20, 20, 10, odd_wi, odd_thr, stride8_buf, even_buf,
-		10, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		20, 20, 10, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		10, 1, ins, odd_wi, odd_thr);
-	print_data_hist(20, 20, 10, odd_buf);
+	read_compute_conv(20, 20, 10, PointwiseHead, 10, false, ins, outs, wi2, thr2, buf1, feat8, buf2, feat1, wi1, thr1);
+	read_compute_conv(20, 20, 10, SingleChannel, 10, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride16
-	read_compute_conv1x1(
-		10, 10, 10, odd_wi, odd_thr, stride16_buf, even_buf,
-		10, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc<true>(
-		10, 10, 10, linebuf, even_wi, even_thr, even_buf, odd_buf,
-		10, 1, ins, odd_wi, odd_thr);
-	print_data_hist(10, 10, 10, odd_buf);
+	read_compute_conv(10, 10, 10, PointwiseHead, 10, false, ins, outs, wi2, thr2, buf1, feat16, buf2, feat1, wi1, thr1);
+	read_compute_conv(10, 10, 10, SingleChannel, 10, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 	// YuNet_Head stride32
-	read_compute_conv1x1(
-		5, 5, 10, odd_wi, odd_thr, stride32_buf, even_buf,
-		10, 1, ins, even_wi, even_thr);
-	read_compute_conv3x3sc(
-		5, 5, 10, linebuf, even_wi, even_thr, even_buf, odd_buf);
-	print_data_hist(5, 5, 10, odd_buf);
-
-	//	print_param_hist(1, 1, 64, odd_wi, odd_thr);
-	//	print_feature_hist(10, 10, 64, feature16_buf);
-	for (int i = 0; i < 16; i++) {
-		out[i] = 0;
-	}
+	read_compute_conv(5, 5, 10, PointwiseHead, 10, false, ins, outs, wi2, thr2, buf1, feat32, buf2, feat1, wi1, thr1);
+	read_compute_conv(5, 5, 10, SingleChannel, 0, true, ins, outs, wi1, thr1, buf2, feat0, buf1, feat1, wi2, thr2);
 }
