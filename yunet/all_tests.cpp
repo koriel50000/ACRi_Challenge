@@ -17,5 +17,5 @@ int main(int argc, char** argv)
 	TestRunner runner;
 	runner.runAllTests(tests);
 
-	return 0;
+	return 1;
 }
