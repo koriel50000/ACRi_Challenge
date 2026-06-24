@@ -87,6 +87,14 @@ namespace Assertions {
 		assertArrayEqualsImpl(expected.begin(), actual, N);
 	}
 
+	template <typename T, size_t N>
+	void assertArrayEquals(const std::initializer_list<T>& expected, const T (&actual)[N]) {
+		if (expected.size() != N) {
+			throw std::runtime_error("array size mismatch");
+		}
+		assertArrayEqualsImpl(expected.begin(), actual, N);
+	}
+
 	template<typename V>
 	static void print_vector(const V& v) {
 		const int N = v.size();

@@ -1,5 +1,4 @@
 #pragma once
-#include <hls_stream.h>
 #include "types.hpp"
 #include "bitarith.hpp"
 #include "window_buffer.hpp"
@@ -15,17 +14,12 @@ const int THRESHOLD = 14;
 const int FEAT_WIDTH = WIDTH / 4;
 const int FEAT_HEIGHT = HEIGHT / 4;
 
-using bit_t = ap_uint<1>;
-using uint4_t = ap_uint<4>;
 using data_t = int_t<CHANNEL>;
 using block_data_t = data_t[HEIGHT * WIDTH * 1];
 using block_feat_t = data_t[FEAT_HEIGHT * FEAT_WIDTH * 1];
 using block_conv_t = data_t[FILTER * 1 * KERNEL * KERNEL];
 using block_thr_t = int16_t[FILTER][THRESHOLD];
 using data_ptr_t = data_t*;
-
-template <typename T>
-using fifo = hls::stream<T>;
 
 enum ConvOp {
 	SpatialOp,

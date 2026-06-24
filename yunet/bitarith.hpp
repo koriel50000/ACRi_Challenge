@@ -1,4 +1,4 @@
-//#pragma once
+#pragma once
 #include "types.hpp"
 
 inline int16_t mul(const uint4_t v, const uint4_t w) {

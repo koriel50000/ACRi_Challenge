@@ -1,3 +1,6 @@
+#pragma once
+#include <cstdint>
+
 // MSB R(4):G(4):B(4) LSB
 static uint64_t images[160 * 160] =
 { // torch.Size([1, 3, 160, 160])

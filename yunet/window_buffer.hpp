@@ -1,4 +1,6 @@
 #pragma once
+#include <cassert>
+#include <cstdint>
 
 template <int ROWS, int COLS, typename T>
 class Window {
