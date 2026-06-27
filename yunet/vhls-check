@@ -564,7 +564,7 @@ EOS
   fi
 
   cat << EOS >> csim.tcl
-set_top kernel
+set_top yunet
 open_solution -flow_target $flow solution
 set_part xcu200-fsgd2104-2-e
 create_clock -period ${target_clock_period_ns}ns -name default
@@ -754,7 +754,7 @@ check_hls() {
   cat << EOS > hls.tcl
 open_project -reset prj_hls_cosim
 add_files -cflags "$hls_cxxflags" "$kernel_sources"
-set_top kernel
+set_top yunet
 open_solution -flow_target $flow solution
 set_part xcu200-fsgd2104-2-e
 create_clock -period ${target_clock_period_ns}ns -name default
