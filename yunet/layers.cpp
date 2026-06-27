@@ -38,11 +38,14 @@ namespace Conv2D {
 			if (i < h * w) {
 				// input
 				data_t inputs[KERNEL * KERNEL + 1];
+#pragma HLS array_partition variable=inputs complete
+
 				for (int k = 0; k < KERNEL * KERNEL + 1; k++) {
 					if (k < mode.input) {
 						inputs[k] = ins.read();
 					}
 				}
+
 				data_t oval = 0;
 				compute_f: for (int j = 0; j < FILTER; j++) {
 					if (j < f) {
@@ -52,6 +55,7 @@ namespace Conv2D {
 								inputs[0][k - 1] = inputs[k][j];
 							}
 						}
+
 						// convolution
 						int16_t acc = 0;
 						compute_k: for (int k = 0; k < KERNEL * KERNEL; k++) {
@@ -60,6 +64,7 @@ namespace Conv2D {
 								acc += muladd<CHANNEL>(inputs[k], wi[j * mode.alpha + k * mode.beta]);
 							}
 						}
+
 						// batch norm
 						if (mode.relu) {
 							oval[j] = batch_norm_relu(acc, thr[j]);

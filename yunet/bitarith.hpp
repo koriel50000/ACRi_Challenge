@@ -6,21 +6,17 @@ inline int16_t mul(const uint4_t v, const uint4_t w) {
 		0, 1, 2, 3, 4, 6, 8, 12,
 		0, -1, -2, -3, -4, -6, -8, -12,
 	};
-	static const bool_t nz[] = { 0, 1, 1, 1, 1, 1, 1, 1 };
-	static const uint4_t shamt[] = { 0, 0, 1, 2, 3, 4, 5, 6 };
-#pragma HLS array_partition variable=v
-#pragma HLS array_partition variable=nz
-#pragma HLS array_partition variable=shamt
+#pragma HLS array_partition variable=v complete
 
 	bool_t sign = v[3] ^ w[3];
-	int16_t oval = v0[(sign, v(2, 0))] * nz[w(2, 0)];
-	return oval << shamt[w(2, 0)];
+	int16_t oval = v0[(sign, v(2, 0))] * (w(2, 0) > 0);
+	return oval << (w(2, 0) - 1);
 }
 
 template <int C>
 int16_t muladd(const int_t<C> vi, const int_t<C> wi) {
 	static int16_t t[C];
-#pragma HLS array_partition variable=t
+#pragma HLS array_partition variable=t complete
 
 	mul: for (int i = 0; i < C; i++) {
 #pragma HLS unroll
@@ -52,7 +48,7 @@ inline uint4_t batch_norm(const int16_t acc, const int16_t thr[]) {
 	static const uint4_t indexTable[] = {
 		7, 6, 5, 2, 4, 10, 1, 12, 0, 3, 9, 11, 15, 0, 14, 13
 	};
-#pragma HLS array_partition variable=indexTable
+#pragma HLS array_partition variable=indexTable complete
 
 	bool_t b0 = acc < thr[0];
 	bool_t b1 = acc < thr[1];

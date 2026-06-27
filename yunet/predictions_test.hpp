@@ -309,12 +309,12 @@ public:
 
 		uint8_t size = preds.get_bboxes();
 		assertEquals(6, size);
-		Detection& detect0 = preds.get_detection(0);
-		Detection& detect1 = preds.get_detection(1);
-		Detection& detect2 = preds.get_detection(2);
-		Detection& detect3 = preds.get_detection(3);
-		Detection& detect4 = preds.get_detection(4);
-		Detection& detect5 = preds.get_detection(5);
+		const Detection& detect0 = preds.get_detection(0);
+		const Detection& detect1 = preds.get_detection(1);
+		const Detection& detect2 = preds.get_detection(2);
+		const Detection& detect3 = preds.get_detection(3);
+		const Detection& detect4 = preds.get_detection(4);
+		const Detection& detect5 = preds.get_detection(5);
 
 		assertEquals(48, detect0.x1);
 		assertEquals(36, detect0.y1);

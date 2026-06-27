@@ -18,7 +18,6 @@ private:
 	ap_uint<W*N> buf_;
 public:
 	int_t() : buf_(0) {}
-	// int_t(int i) : buf_(i) {}
 	int_t(uint64_t ul) : buf_(ul) {}
 	int_t(uint64_t w3, uint64_t w2, uint64_t w1, uint64_t w0) {
 		assert(N == 64 && W == 4);

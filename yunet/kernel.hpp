@@ -7,7 +7,7 @@ using axis_data64 = ap_axis<64, 0, 0, 0, (AXIS_ENABLE_DATA | AXIS_ENABLE_LAST), 
 using axis_data8 = ap_axis<8, 0, 0, 0, (AXIS_ENABLE_DATA | AXIS_ENABLE_LAST), true>;
 
 extern "C" {
-void kernel(
+void yunet(
 	hls::stream<axis_data64>& ins,
 	hls::stream<axis_data8>& outs
 );

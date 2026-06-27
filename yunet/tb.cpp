@@ -13,7 +13,7 @@ int main(int argc, char** argv)
 	hls::stream<axis_data8> outs;
 
 	input_stream(ins);
-	kernel(ins, outs);
+	yunet(ins, outs);
 	return validate_output_stream(outs);
 }
 

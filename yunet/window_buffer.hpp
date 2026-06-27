@@ -5,23 +5,21 @@
 template <int ROWS, int COLS, typename T>
 class Window {
 private:
-	T buf_[ROWS * COLS];
+	T buf[ROWS * COLS];
 public:
-	Window() : buf_{} {}
-
 	void reset_center_col() {
-#pragma HLS array_partition variable=buf_
+#pragma HLS array_partition variable=buf complete
 		reset_center_col: for (int i = 0; i < ROWS; i++) {
 #pragma HLS unroll
 			int idx = i * COLS + 1;
-			buf_[idx] = 0;
+			buf[idx] = 0;
 		}
 	}
 
 	void shift_pixels_left() {
 		shift_pixels_left: for (int i = 0; i < ROWS * COLS - 1; i++) {
 #pragma HLS unroll
-			buf_[i] = buf_[i + 1];
+			buf[i] = buf[i + 1];
 		}
 	}
 
@@ -34,13 +32,13 @@ public:
 			if (0 <= x && x < w	&& 0 <= y && y < h) {
 				int ptr = y * w + x;
 				if (depthwise) {
-					buf_[idx] = inb[ptr];
+					buf[idx] = inb[ptr];
 				} else {
 					T val = inb[ptr >> 2];
-					buf_[idx] = T((uint64_t)val.word(ptr & 0x3));
+					buf[idx] = T((uint64_t)val.word(ptr & 0x3));
 				}
 			} else {
-				buf_[idx] = 0;
+				buf[idx] = 0;
 			}
 			y++;
 		}
@@ -48,7 +46,7 @@ public:
 
     inline const T& operator[](size_t index) const {
 		assert(index < ROWS * COLS);
-        return buf_[index];
+        return buf[index];
     }
 };
 
@@ -82,7 +80,7 @@ public:
 //	LineBuffer() : buf_{} {}
 //
 //	void reset(int w) {
-//#pragma HLS bind_storage variable=buf_ type=ram_t2p impl=bram
+//#pragma HLS bind_storage variable=buf_ type=ram_t2p
 //		width_ = w;
 //		head_ = 0;
 //	}
@@ -93,7 +91,7 @@ public:
 //
 //	void slide_window(const T v) {
 //		T rows[KN];
-//#pragma HLS array_partition variable=rows
+//#pragma HLS array_partition variable=rows complete
 //
 //		get_col(rows);
 //		rows[KN - 1] = v;
