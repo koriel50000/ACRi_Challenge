@@ -26,7 +26,7 @@ private:
     static constexpr int NUM_PRED_FEATURES = 16; // cls, bbox[4], obj, kps[10]
     static constexpr int IMAGE_SIZE = 160;
 
-    static constexpr uint8_t FEATURE_DECODE_TABLE[(NUM_PRED_TYPES + 1) * NUM_STRIDES][NUM_QLEVELS_4BIT] = {
+    inline static constexpr uint8_t FEATURE_DECODE_TABLE[(NUM_PRED_TYPES + 1) * NUM_STRIDES][NUM_QLEVELS_4BIT] = {
         // cls
         { 136, 145, 154, 162, 171, 186, 199, 220, 0, 127, 118, 109, 100, 83, 68, 43 },
         { 145, 157, 168, 178, 188, 205, 218, 236, 0, 134, 122, 110, 98, 77, 58, 31 },
@@ -49,7 +49,7 @@ private:
         { 29, 40, 52, 63, 74, 97, 120, 166, 0, 17, 6, 0, 0, 0, 0, 0 },
     };
 
-    static constexpr uint8_t FEATURE_OFFSET[NUM_PRED_TYPES * NUM_STRIDES] = {
+    inline static constexpr uint8_t FEATURE_OFFSET[NUM_PRED_TYPES * NUM_STRIDES] = {
         0, 0, 0,  // cls
         1, 1, 1,  // bbox
         5, 5, 5,  // obj
